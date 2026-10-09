@@ -1,10 +1,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Order } from '../../types/database.types';
+import { Order, MenuItem } from '../../types/database.types';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -13,16 +11,16 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
 } from 'recharts';
 
 interface AnalyticsChartsProps {
   orders: Order[];
+  menuItems?: MenuItem[];
 }
 
-const COLORS = ['#ea580c', '#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+const COLORS = ['#ea580c', '#0284c7', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
-export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders }) => {
+export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders, menuItems = [] }) => {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -62,31 +60,76 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders }) => {
     }));
   }, [orders]);
 
-  // 2. Calculate Category Breakdown from Order Items
+  // 2. Dynamically Calculate Real Category Breakdown from Settled Orders
   const categoryData = useMemo(() => {
     const catMap: { [category: string]: number } = {};
+    const itemCategoryMap = new Map<string, string>();
+
+    // Build lookup map from menuItems
+    menuItems.forEach((m) => {
+      itemCategoryMap.set(m.id, m.category);
+      itemCategoryMap.set(m.name.toLowerCase().trim(), m.category);
+    });
+
+    // Helper to infer category from dish name if id wasn't matched
+    const inferCategory = (name: string): string => {
+      const lower = name.toLowerCase();
+      if (lower.includes('biryani') || lower.includes('curry') || lower.includes('paneer') || lower.includes('rice') || lower.includes('masala')) {
+        return 'Main Course';
+      }
+      if (lower.includes('fry') || lower.includes('tikka') || lower.includes('soup') || lower.includes('crispy') || lower.includes('starter')) {
+        return 'Starters';
+      }
+      if (lower.includes('naan') || lower.includes('roti') || lower.includes('paratha') || lower.includes('bread')) {
+        return 'Breads';
+      }
+      if (lower.includes('coffee') || lower.includes('tea') || lower.includes('juice') || lower.includes('shake') || lower.includes('cooler') || lower.includes('soda')) {
+        return 'Beverages';
+      }
+      if (lower.includes('jamun') || lower.includes('ice cream') || lower.includes('cake') || lower.includes('halwa') || lower.includes('dessert')) {
+        return 'Desserts';
+      }
+      return 'Special Delights';
+    };
+
+    let totalRevenue = 0;
 
     orders.forEach((o) => {
-      if (o.order_items) {
+      // Calculate from settled or active orders
+      if (o.order_items && o.order_items.length > 0) {
         o.order_items.forEach((item) => {
-          // Default grouping or inferred category
-          const cat = 'Food & Beverages';
-          catMap[cat] = (catMap[cat] || 0) + Number(item.total_price);
+          let category = 'Main Course';
+          if (item.item_id && itemCategoryMap.has(item.item_id)) {
+            category = itemCategoryMap.get(item.item_id)!;
+          } else if (itemCategoryMap.has(item.item_name.toLowerCase().trim())) {
+            category = itemCategoryMap.get(item.item_name.toLowerCase().trim())!;
+          } else {
+            category = inferCategory(item.item_name);
+          }
+
+          const amount = Number(item.total_price) || 0;
+          catMap[category] = (catMap[category] || 0) + amount;
+          totalRevenue += amount;
         });
       }
     });
 
-    // Provide default distribution if items data is sparse in test seed
-    const defaultData = [
-      { name: 'Main Course', value: 45 },
-      { name: 'Starters', value: 25 },
-      { name: 'Beverages', value: 15 },
-      { name: 'Breads', value: 10 },
-      { name: 'Desserts', value: 5 },
-    ];
+    if (totalRevenue === 0) {
+      return [];
+    }
 
-    return defaultData;
-  }, [orders]);
+    // Convert to percentage breakdown
+    const result = Object.entries(catMap)
+      .filter(([_, revenue]) => revenue > 0)
+      .map(([name, revenue]) => ({
+        name,
+        revenue: Math.round(revenue),
+        value: Math.round((revenue / totalRevenue) * 100),
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    return result;
+  }, [orders, menuItems]);
 
   if (!mounted) {
     return (
@@ -147,56 +190,72 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders }) => {
         </div>
       </div>
 
-      {/* 2. Category Distribution Donut Chart (4 Columns) */}
+      {/* 2. Real Category Distribution Donut Chart (4 Columns) */}
       <div className="lg:col-span-4 bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between">
         <div>
           <span className="text-[11px] font-extrabold uppercase tracking-wider text-orange-600">
-            Category Share
+            Real Category Share
           </span>
           <h3 className="text-base font-black text-slate-900">Sales by Category</h3>
         </div>
 
-        <div className="h-56 w-full my-auto">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={categoryData}
-                cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={75}
-                paddingAngle={4}
-                dataKey="value"
-              >
-                {categoryData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                formatter={(val) => [`${val}%`, 'Share']}
-                contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderRadius: '12px',
-                  color: '#fff',
-                  border: 'none',
-                  fontSize: '12px',
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
-          {categoryData.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-1.5 text-slate-600 font-semibold">
-              <span
-                className="w-2.5 h-2.5 rounded-full"
-                style={{ backgroundColor: COLORS[idx % COLORS.length] }}
-              />
-              <span>{item.name}</span>
+        {categoryData.length === 0 ? (
+          <div className="my-auto py-10 text-center text-slate-400">
+            <span className="text-3xl">📊</span>
+            <p className="text-xs font-semibold mt-2">No category sales recorded yet</p>
+            <p className="text-[10px] text-slate-400">Settled orders will generate live category shares</p>
+          </div>
+        ) : (
+          <>
+            <div className="h-56 w-full my-auto">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={75}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {categoryData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(val, _, props) => [
+                      `${val}% (₹${(props.payload as any).revenue})`,
+                      'Revenue Share',
+                    ]}
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderRadius: '12px',
+                      color: '#fff',
+                      border: 'none',
+                      fontSize: '12px',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          ))}
-        </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 text-[11px]">
+              {categoryData.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-slate-600 font-semibold pr-1">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                    />
+                    <span className="truncate">{item.name}</span>
+                  </div>
+                  <span className="font-extrabold text-slate-900">{item.value}%</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -4,10 +4,15 @@ import { Order } from '../../types/database.types';
 
 interface OrderSuccessModalProps {
   order: Order;
+  isAppended?: boolean;
   onReset: () => void;
 }
 
-export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({ order, onReset }) => {
+export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
+  order,
+  isAppended = false,
+  onReset,
+}) => {
   const [currentStatus, setCurrentStatus] = useState<string>(order.status);
 
   // Subscribe to live status changes for this specific order
@@ -92,9 +97,13 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({ order, onR
           </svg>
         </div>
 
-        <h2 className="text-2xl font-black text-gray-900 tracking-tight">Order Placed!</h2>
+        <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+          {isAppended ? 'Round 2 Dishes Added!' : 'Order Placed!'}
+        </h2>
         <p className="text-xs text-gray-500 mt-1">
-          Your order has been sent to our kitchen team.
+          {isAppended
+            ? 'Your additional items have been appended to your running table bill.'
+            : 'Your order has been sent to our kitchen team.'}
         </p>
 
         {/* Bill & Table Card */}
@@ -113,7 +122,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({ order, onR
 
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500 font-medium">Total Bill:</span>
-            <span className="font-bold text-gray-900">₹{order.total_amount.toFixed(2)}</span>
+            <span className="font-bold text-gray-900">₹{Number(order.total_amount).toFixed(2)}</span>
           </div>
 
           <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-xs">
@@ -131,7 +140,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({ order, onR
           <span className="text-base">📧</span>
           <p>
             A digital copy of your bill will be dispatched to{' '}
-            <strong className="font-semibold">{order.customer_email}</strong>.
+            <strong className="font-semibold">{order.customer_email || 'your email'}</strong>.
           </p>
         </div>
 
@@ -146,3 +155,5 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({ order, onR
     </div>
   );
 };
+
+export default OrderSuccessModal;

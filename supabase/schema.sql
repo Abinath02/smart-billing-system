@@ -275,3 +275,212 @@ INSERT INTO public.offers (id, item_id, title, discount_details, poster_url, is_
 ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '55555555-5555-5555-5555-555555555555', 'Combo Coolers: Flat ₹30 OFF', '{"type": "fixed", "value": 30}'::jsonb, 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=1000&q=80', true)
 ON CONFLICT (id) DO NOTHING;
 
+-- ====================================================================
+-- 11. SECURE SERVER-SIDE PRICING & RUNNING ORDER RPC FUNCTION
+-- ====================================================================
+CREATE OR REPLACE FUNCTION public.place_or_append_order(
+    p_table_no TEXT,
+    p_customer_name TEXT,
+    p_customer_phone TEXT,
+    p_customer_email TEXT,
+    p_notes TEXT,
+    p_items JSONB,
+    p_append_to_existing BOOLEAN DEFAULT false
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_order_id UUID;
+    v_bill_no TEXT;
+    v_existing_order RECORD;
+    v_item JSONB;
+    v_item_id UUID;
+    v_item_qty INT;
+    v_special_notes TEXT;
+    v_db_item RECORD;
+    v_offer RECORD;
+    v_unit_price NUMERIC(10, 2);
+    v_item_discount NUMERIC(10, 2);
+    v_line_total NUMERIC(10, 2);
+    v_batch_subtotal NUMERIC(10, 2) := 0.00;
+    v_batch_discount NUMERIC(10, 2) := 0.00;
+    v_tax_rate NUMERIC(10, 4) := 0.0500; -- 5% GST
+    v_new_subtotal NUMERIC(10, 2);
+    v_new_discount NUMERIC(10, 2);
+    v_new_tax NUMERIC(10, 2);
+    v_new_total NUMERIC(10, 2);
+    v_round_tag TEXT := '';
+    v_result JSONB;
+BEGIN
+    -- 1. Validate inputs
+    IF p_table_no IS NULL OR trim(p_table_no) = '' THEN
+        RAISE EXCEPTION 'Table number is required.';
+    END IF;
+
+    IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
+        RAISE EXCEPTION 'Order must contain at least one item.';
+    END IF;
+
+    -- 2. Check for active existing order if append requested
+    IF p_append_to_existing THEN
+        SELECT * INTO v_existing_order
+        FROM public.orders
+        WHERE upper(trim(table_no)) = upper(trim(p_table_no))
+          AND status IN ('pending', 'cooking', 'ready')
+        ORDER BY created_at DESC
+        LIMIT 1;
+
+        IF FOUND THEN
+            v_order_id := v_existing_order.id;
+            v_bill_no := v_existing_order.bill_no;
+            v_round_tag := ' [Add-on Round]';
+        END IF;
+    END IF;
+
+    -- 3. If no existing order found or append not requested, create new order record
+    IF v_order_id IS NULL THEN
+        INSERT INTO public.orders (
+            table_no,
+            customer_name,
+            customer_phone,
+            customer_email,
+            notes,
+            subtotal,
+            discount_amount,
+            tax_amount,
+            total_amount,
+            status,
+            payment_mode
+        )
+        VALUES (
+            upper(trim(p_table_no)),
+            COALESCE(NULLIF(trim(p_customer_name), ''), 'Guest Customer'),
+            trim(p_customer_phone),
+            trim(p_customer_email),
+            p_notes,
+            0.00,
+            0.00,
+            0.00,
+            0.00,
+            'pending',
+            'unpaid'
+        )
+        RETURNING id, bill_no INTO v_order_id, v_bill_no;
+    END IF;
+
+    -- 4. Securely process each item with verified DB prices
+    FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
+    LOOP
+        v_item_id := (v_item->>'item_id')::UUID;
+        v_item_qty := COALESCE((v_item->>'quantity')::INT, 1);
+        v_special_notes := v_item->>'special_instructions';
+
+        IF v_item_qty <= 0 THEN
+            CONTINUE;
+        END IF;
+
+        -- Fetch real dish price and availability from menu_items
+        SELECT name, price, is_available INTO v_db_item
+        FROM public.menu_items
+        WHERE id = v_item_id;
+
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'Dish with ID % does not exist.', v_item_id;
+        END IF;
+
+        IF NOT v_db_item.is_available THEN
+            RAISE EXCEPTION 'Dish % is currently marked unavailable.', v_db_item.name;
+        END IF;
+
+        v_unit_price := v_db_item.price;
+        v_item_discount := 0.00;
+
+        -- Check if active offer applies
+        SELECT * INTO v_offer
+        FROM public.offers
+        WHERE item_id = v_item_id AND is_active = true
+        ORDER BY created_at DESC
+        LIMIT 1;
+
+        IF FOUND THEN
+            IF (v_offer.discount_details->>'type') = 'percentage' THEN
+                v_item_discount := ROUND((v_unit_price * ((v_offer.discount_details->>'value')::NUMERIC / 100.0)), 2);
+            ELSIF (v_offer.discount_details->>'type') = 'fixed' THEN
+                v_item_discount := LEAST(v_unit_price, (v_offer.discount_details->>'value')::NUMERIC);
+            END IF;
+        END IF;
+
+        v_line_total := (v_unit_price - v_item_discount) * v_item_qty;
+        v_batch_subtotal := v_batch_subtotal + (v_unit_price * v_item_qty);
+        v_batch_discount := v_batch_discount + (v_item_discount * v_item_qty);
+
+        -- Insert order item
+        INSERT INTO public.order_items (
+            order_id,
+            item_id,
+            item_name,
+            quantity,
+            unit_price,
+            total_price,
+            special_instructions
+        )
+        VALUES (
+            v_order_id,
+            v_item_id,
+            v_db_item.name,
+            v_item_qty,
+            v_unit_price,
+            v_line_total,
+            CASE 
+                WHEN v_special_notes IS NOT NULL AND v_special_notes <> '' 
+                THEN v_special_notes || v_round_tag
+                ELSE NULLIF(v_round_tag, '')
+            END
+        );
+    END LOOP;
+
+    -- 5. Recalculate full order totals
+    IF v_existing_order.id IS NOT NULL THEN
+        v_new_subtotal := v_existing_order.subtotal + v_batch_subtotal;
+        v_new_discount := v_existing_order.discount_amount + v_batch_discount;
+        v_new_tax := ROUND((v_new_subtotal - v_new_discount) * v_tax_rate, 2);
+        v_new_total := (v_new_subtotal - v_new_discount) + v_new_tax;
+
+        UPDATE public.orders
+        SET subtotal = v_new_subtotal,
+            discount_amount = v_new_discount,
+            tax_amount = v_new_tax,
+            total_amount = v_new_total,
+            status = 'pending', -- reset to pending so kitchen alerts for new items
+            updated_at = timezone('utc', now())
+        WHERE id = v_order_id;
+    ELSE
+        v_new_subtotal := v_batch_subtotal;
+        v_new_discount := v_batch_discount;
+        v_new_tax := ROUND((v_new_subtotal - v_new_discount) * v_tax_rate, 2);
+        v_new_total := (v_new_subtotal - v_new_discount) + v_new_tax;
+
+        UPDATE public.orders
+        SET subtotal = v_new_subtotal,
+            discount_amount = v_new_discount,
+            tax_amount = v_new_tax,
+            total_amount = v_new_total,
+            updated_at = timezone('utc', now())
+        WHERE id = v_order_id;
+    END IF;
+
+    -- 6. Fetch complete JSON response
+    SELECT jsonb_build_object(
+        'order', row_to_json(o),
+        'items', (SELECT jsonb_agg(row_to_json(oi)) FROM public.order_items oi WHERE oi.order_id = v_order_id),
+        'is_appended', (v_existing_order.id IS NOT NULL)
+    ) INTO v_result
+    FROM public.orders o
+    WHERE o.id = v_order_id;
+
+    RETURN v_result;
+END;
+$$;
+

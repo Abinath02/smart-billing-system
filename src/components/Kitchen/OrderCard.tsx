@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order } from '../../types/database.types';
 
 interface OrderCardProps {
@@ -12,19 +12,40 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onMarkAsCooked,
   onStartCooking,
 }) => {
-  // Format elapsed time
-  const getElapsedMinutes = (createdAt: string) => {
-    const elapsedMs = Date.now() - new Date(createdAt).getTime();
-    return Math.floor(elapsedMs / (1000 * 60));
+  // Live ticker state (ticks every second)
+  const [secondsElapsed, setSecondsElapsed] = useState<number>(() => {
+    const startMs = new Date(order.created_at).getTime();
+    return Math.max(0, Math.floor((Date.now() - startMs) / 1000));
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const startMs = new Date(order.created_at).getTime();
+      setSecondsElapsed(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [order.created_at]);
+
+  // SLA Target Prep Time: 15 minutes (900 seconds)
+  const targetSeconds = 15 * 60;
+  const isOverdue = secondsElapsed > targetSeconds;
+  const remainingSeconds = Math.max(0, targetSeconds - secondsElapsed);
+
+  // Time formatters
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remSecs = secs % 60;
+    return `${mins}m ${remSecs.toString().padStart(2, '0')}s`;
   };
 
-  const elapsedMins = getElapsedMinutes(order.created_at);
-  const isUrgent = elapsedMins >= 15;
+  const overdueSecs = secondsElapsed - targetSeconds;
+  const progressPercent = Math.min(100, Math.round((secondsElapsed / targetSeconds) * 100));
 
   return (
     <div
       className={`rounded-3xl bg-white p-5 shadow-sm border-2 transition-all flex flex-col justify-between ${
-        isUrgent
+        isOverdue
           ? 'border-red-400 ring-2 ring-red-100'
           : order.status === 'cooking'
           ? 'border-blue-400'
@@ -39,9 +60,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               <span className="text-2xl font-black text-gray-900 tracking-tight">
                 Table {order.table_no}
               </span>
-              {isUrgent && (
+              {isOverdue && (
                 <span className="text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700 px-2 py-0.5 rounded-full animate-pulse">
-                  Urgent
+                  ⚠️ SLA Overdue (+{formatTime(overdueSecs)})
                 </span>
               )}
             </div>
@@ -60,9 +81,27 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             >
               {order.status === 'cooking' ? '🔥 Cooking' : '⏳ New Order'}
             </span>
-            <p className="text-[11px] text-gray-400 font-medium mt-1">
-              {elapsedMins <= 0 ? 'Just now' : `${elapsedMins}m ago`}
+            <p className="text-[11px] text-gray-500 font-bold mt-1 font-mono">
+              ⏱️ {formatTime(secondsElapsed)} elapsed
             </p>
+          </div>
+        </div>
+
+        {/* Live Preparation SLA Countdown Bar */}
+        <div className="mt-3 p-2.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1.5">
+          <div className="flex items-center justify-between text-[11px] font-bold">
+            <span className="text-gray-500">Target Kitchen SLA (15 mins)</span>
+            <span className={isOverdue ? 'text-red-600 font-black' : 'text-blue-700 font-black'}>
+              {isOverdue ? `Overdue by +${formatTime(overdueSecs)}` : `${formatTime(remainingSeconds)} left`}
+            </span>
+          </div>
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              style={{ width: `${progressPercent}%` }}
+              className={`h-full transition-all duration-1000 ${
+                isOverdue ? 'bg-red-500 animate-pulse' : progressPercent > 70 ? 'bg-amber-500' : 'bg-emerald-500'
+              }`}
+            />
           </div>
         </div>
 
@@ -84,28 +123,40 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
           <div className="space-y-2">
             {order.order_items && order.order_items.length > 0 ? (
-              order.order_items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-start justify-between text-xs py-1 px-2 rounded-lg bg-gray-50 border border-gray-100"
-                >
-                  <div className="flex items-baseline gap-2">
-                    <span className="w-5 h-5 rounded-md bg-orange-600 text-white font-extrabold flex items-center justify-center text-[11px]">
-                      {item.quantity}
-                    </span>
-                    <div>
-                      <span className="font-bold text-gray-800 text-sm">
-                        {item.item_name}
+              order.order_items.map((item) => {
+                const isRound2 = item.special_instructions?.includes('Round 2') || item.special_instructions?.includes('Add-on');
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-start justify-between text-xs py-1.5 px-2.5 rounded-xl border ${
+                      isRound2 ? 'bg-amber-50/60 border-amber-300' : 'bg-gray-50 border-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-baseline gap-2">
+                      <span className="w-5 h-5 rounded-md bg-orange-600 text-white font-extrabold flex items-center justify-center text-[11px] flex-shrink-0">
+                        {item.quantity}
                       </span>
-                      {item.special_instructions && (
-                        <p className="text-[10px] text-orange-700 font-medium mt-0.5">
-                          ⭐ {item.special_instructions}
-                        </p>
-                      )}
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-gray-800 text-sm">
+                            {item.item_name}
+                          </span>
+                          {isRound2 && (
+                            <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">
+                              ✨ New Add-on (Round 2)
+                            </span>
+                          )}
+                        </div>
+                        {item.special_instructions && (
+                          <p className="text-[10px] text-orange-700 font-medium mt-0.5">
+                            ⭐ {item.special_instructions}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-xs text-gray-400 italic">No food items found.</p>
             )}
@@ -137,3 +188,5 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     </div>
   );
 };
+
+export default OrderCard;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { CartItem, CustomerDetails } from '../../types/cart.types';
 import { Order } from '../../types/database.types';
@@ -10,7 +10,9 @@ interface CheckoutModalProps {
   subtotal: number;
   discount: number;
   taxRate?: number; // e.g. 0.05 for 5% GST
-  onOrderSuccess: (order: Order) => void;
+  initialTableNo?: string;
+  isTableLocked?: boolean;
+  onOrderSuccess: (order: Order, isAppended?: boolean) => void;
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -20,10 +22,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   subtotal,
   discount,
   taxRate = 0.05,
+  initialTableNo = '',
+  isTableLocked = false,
   onOrderSuccess,
 }) => {
   const [form, setForm] = useState<CustomerDetails>({
-    tableNo: '',
+    tableNo: initialTableNo || '',
     customerName: '',
     customerPhone: '',
     customerEmail: '',
@@ -33,13 +37,69 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Multi-round active table order state
+  const [existingOrder, setExistingOrder] = useState<Order | null>(null);
+  const [appendToExisting, setAppendToExisting] = useState<boolean>(true);
+  const [checkingExisting, setCheckingExisting] = useState<boolean>(false);
+
+  // Sync initial table if provided
+  useEffect(() => {
+    if (initialTableNo) {
+      setForm((prev) => ({ ...prev, tableNo: initialTableNo }));
+    }
+  }, [initialTableNo]);
+
+  // Check if this table has an active running order (pending, cooking, ready)
+  useEffect(() => {
+    const checkTableSession = async () => {
+      const table = form.tableNo.trim().toUpperCase();
+      if (!table || table.length < 2) {
+        setExistingOrder(null);
+        return;
+      }
+
+      setCheckingExisting(true);
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('table_no', table)
+          .in('status', ['pending', 'cooking', 'ready'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setExistingOrder(data[0] as Order);
+          setAppendToExisting(true);
+        } else {
+          setExistingOrder(null);
+        }
+      } catch (err) {
+        console.warn('Error checking table session:', err);
+      } finally {
+        setCheckingExisting(false);
+      }
+    };
+
+    if (isOpen && form.tableNo) {
+      const debounceTimer = setTimeout(checkTableSession, 300);
+      return () => clearTimeout(debounceTimer);
+    }
+  }, [isOpen, form.tableNo]);
+
   if (!isOpen) return null;
 
   const taxAmount = Number(((subtotal - discount) * taxRate).toFixed(2));
   const finalTotal = Math.max(0, Number((subtotal - discount + taxAmount).toFixed(2)));
 
+  const standardTables = [
+    'T-01', 'T-02', 'T-03', 'T-04', 'T-05',
+    'T-06', 'T-07', 'T-08', 'T-09', 'T-10',
+    'T-11', 'T-12', 'VIP-1', 'VIP-2'
+  ];
+
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -50,11 +110,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setErrorMessage(null);
 
     // Form Validation
-    if (!form.tableNo.trim()) {
-      setErrorMessage('Please enter your Table Number.');
+    const cleanTable = form.tableNo.trim().toUpperCase();
+    if (!cleanTable) {
+      setErrorMessage('Please enter or select your Table Number.');
       return;
     }
-    if (!form.customerPhone.trim() || form.customerPhone.length < 10) {
+    if (!form.customerPhone.trim() || form.customerPhone.replace(/\D/g, '').length < 10) {
       setErrorMessage('Please enter a valid 10-digit phone number.');
       return;
     }
@@ -70,60 +131,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     try {
       setLoading(true);
 
-      // Generate fallback bill number in case sequence isn't triggered
-      const timestampSuffix = Math.floor(1000 + Math.random() * 9000);
-      const generatedBillNo = `BILL-${Date.now().toString().slice(-4)}${timestampSuffix}`;
+      // Secure Server-Side Ordering API Call (Fixes Client-Side Price Manipulation Vulnerability)
+      const res = await fetch('/api/orders/place', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableNo: cleanTable,
+          customerName: form.customerName.trim() || 'Guest Customer',
+          customerPhone: form.customerPhone.trim(),
+          customerEmail: form.customerEmail.trim(),
+          notes: form.notes?.trim() || null,
+          appendToExisting: Boolean(existingOrder && appendToExisting),
+          cartItems: cartItems.map((c) => ({
+            itemId: c.menuItem.id,
+            quantity: c.quantity,
+            offerId: c.appliedOffer?.id || undefined,
+            specialInstructions: c.specialInstructions || (c.appliedOffer ? `Offer: ${c.appliedOffer.title}` : undefined),
+          })),
+        }),
+      });
 
-      // 1. Insert Order into Supabase Orders Table
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert([
-          {
-            bill_no: generatedBillNo,
-            table_no: form.tableNo.toUpperCase().trim(),
-            customer_name: form.customerName.trim() || 'Guest Customer',
-            customer_phone: form.customerPhone.trim(),
-            customer_email: form.customerEmail.trim(),
-            subtotal: subtotal,
-            discount_amount: discount,
-            tax_amount: taxAmount,
-            total_amount: finalTotal,
-            status: 'pending',
-            payment_mode: 'unpaid',
-            notes: form.notes?.trim() || null,
-          },
-        ])
-        .select()
-        .single();
+      const data = await res.json();
 
-      if (orderError) {
-        throw new Error(orderError.message);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to place order securely.');
       }
 
-      // 2. Prepare Order Items
-      const orderItemsPayload = cartItems.map((item) => ({
-        order_id: orderData.id,
-        item_id: item.menuItem.id,
-        item_name: item.menuItem.name,
-        quantity: item.quantity,
-        unit_price: item.unitPrice,
-        total_price: item.totalPrice,
-        special_instructions: item.appliedOffer
-          ? `Offer Applied: ${item.appliedOffer.title}`
-          : item.specialInstructions || null,
-      }));
-
-      // 3. Insert into Supabase Order_Items Table
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItemsPayload);
-
-      if (itemsError) {
-        throw new Error(itemsError.message);
-      }
-
-      // Successful placement
-      onOrderSuccess(orderData as Order);
+      // Successful placement verified by server
+      onOrderSuccess(data.order as Order, data.isAppended);
     } catch (err: any) {
       console.error('Order submission error:', err);
       setErrorMessage(err.message || 'Failed to place order. Please try again.');
@@ -139,7 +174,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         <div className="px-6 py-4 bg-gradient-to-r from-orange-500 to-amber-500 text-white flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold">Confirm & Place Order</h2>
-            <p className="text-xs text-orange-100">Review bill summary & enter details</p>
+            <p className="text-xs text-orange-100">Verified server pricing & instant kitchen dispatch</p>
           </div>
           <button
             onClick={onClose}
@@ -155,6 +190,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
               <span>⚠️</span>
               <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Running Table Session Banner (Issue 5 Fix) */}
+          {existingOrder && (
+            <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🍲</span>
+                  <div>
+                    <h5 className="text-xs font-black text-amber-950">
+                      Active Table Session Detected!
+                    </h5>
+                    <p className="text-[11px] text-amber-800">
+                      Table {existingOrder.table_no} already has an open bill ({existingOrder.bill_no})
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                  {existingOrder.status}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-amber-200/80 flex items-center justify-between text-xs">
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-amber-900">
+                  <input
+                    type="checkbox"
+                    checked={appendToExisting}
+                    onChange={(e) => setAppendToExisting(e.target.checked)}
+                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                  />
+                  <span>Add as Round 2 (Append to this bill)</span>
+                </label>
+                <span className="text-[10px] text-amber-700 font-semibold">Recommended</span>
+              </div>
             </div>
           )}
 
@@ -197,7 +267,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span>₹{taxAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm font-extrabold text-gray-900 pt-1.5 border-t border-dashed border-gray-300">
-                <span>Total Payable</span>
+                <span>Estimated Payable</span>
                 <span className="text-orange-600">₹{finalTotal.toFixed(2)}</span>
               </div>
             </div>
@@ -206,20 +276,46 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {/* Customer Details Form */}
           <form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-3.5">
             <div className="grid grid-cols-2 gap-3">
-              {/* Table Number */}
+              {/* Table Number with Auto-lock & Validation (Issue 7 Fix) */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">
-                  Table No <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="tableNo"
-                  placeholder="e.g. T-04"
-                  value={form.tableNo}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-gray-700">
+                    Table No <span className="text-red-500">*</span>
+                  </label>
+                  {isTableLocked && (
+                    <span className="text-[10px] text-green-700 font-extrabold flex items-center gap-0.5">
+                      <span>🔒</span> QR Locked
+                    </span>
+                  )}
+                </div>
+
+                {isTableLocked ? (
+                  <input
+                    type="text"
+                    name="tableNo"
+                    value={form.tableNo}
+                    readOnly
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-green-300 bg-green-50/60 text-green-950 text-sm font-black uppercase tracking-wider cursor-not-allowed"
+                  />
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="tableNo"
+                      placeholder="e.g. T-04"
+                      value={form.tableNo}
+                      onChange={handleInputChange}
+                      list="tables-datalist"
+                      required
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50"
+                    />
+                    <datalist id="tables-datalist">
+                      {standardTables.map((t) => (
+                        <option key={t} value={t} />
+                      ))}
+                    </datalist>
+                  </div>
+                )}
               </div>
 
               {/* Customer Name */}
@@ -239,7 +335,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Phone Number */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                Phone Number <span className="text-red-500">*</span>
+                Phone Number (WhatsApp Bill) <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-2.5 text-xs text-gray-500 font-semibold">
@@ -261,7 +357,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Email Address */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                Email Address (for e-receipt) <span className="text-red-500">*</span>
+                Email Address (E-Receipt) <span className="text-red-500">*</span>
               </label>
               <input
                 type="email"
@@ -277,12 +373,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {/* Kitchen Cooking Notes */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
-                Cooking Notes (Optional)
+                Cooking Instructions (Optional)
               </label>
               <textarea
                 name="notes"
                 rows={2}
-                placeholder="e.g. Less spicy, extra sauce"
+                placeholder="e.g. Less spicy, extra onions"
                 value={form.notes}
                 onChange={handleInputChange}
                 className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
@@ -294,7 +390,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Footer Actions */}
         <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-3">
           <div className="flex flex-col">
-            <span className="text-[11px] text-gray-500 uppercase font-semibold">Total Amount</span>
+            <span className="text-[11px] text-gray-500 uppercase font-semibold">
+              {existingOrder && appendToExisting ? 'Round Total' : 'Total Amount'}
+            </span>
             <span className="text-xl font-extrabold text-gray-900">₹{finalTotal.toFixed(2)}</span>
           </div>
 
@@ -329,7 +427,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <span>Placing Order...</span>
+                <span>Verifying & Placing...</span>
+              </>
+            ) : existingOrder && appendToExisting ? (
+              <>
+                <span>Add to Bill (Round 2)</span>
+                <span>➔</span>
               </>
             ) : (
               <>

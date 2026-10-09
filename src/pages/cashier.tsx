@@ -1,11 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import Head from 'next/head';
 import { supabase } from '../lib/supabaseClient';
-import { Order, OrderItem } from '../types/database.types';
+import { Order, OrderItem, Profile } from '../types/database.types';
 import { generateInvoicePDF } from '../utils/generateInvoicePDF';
 import { sendInvoiceNotification } from '../utils/sendInvoiceNotification';
+import { CashierLogin } from '../components/Cashier/CashierLogin';
+
+type CashierPaymentMode = 'cash' | 'card' | 'upi' | 'split';
 
 export const CashierDashboard: React.FC = () => {
+  // Staff Auth State
+  const [currentUser, setCurrentUser] = useState<Profile | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
   // Search and Orders State
   const [searchBillNo, setSearchBillNo] = useState('');
   const [unpaidOrders, setUnpaidOrders] = useState<Order[]>([]);
@@ -16,14 +23,61 @@ export const CashierDashboard: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
 
   // Payment Form State
-  const [paymentMode, setPaymentMode] = useState<'cash' | 'card'>('cash');
+  const [paymentMode, setPaymentMode] = useState<CashierPaymentMode>('cash');
   const [cashTendered, setCashTendered] = useState<string>('');
   const [verifiedAmount, setVerifiedAmount] = useState<number>(0);
+  const [splitCashAmount, setSplitCashAmount] = useState<string>('');
   const [closingBill, setClosingBill] = useState(false);
   const [notificationStatus, setNotificationStatus] = useState<string | null>(null);
+  const [whatsappShareUrl, setWhatsappShareUrl] = useState<string | null>(null);
   const [billClosedSuccess, setBillClosedSuccess] = useState<boolean>(false);
 
-  // 1. Fetch Open Unpaid Orders on Load
+  const restaurantVpa = process.env.NEXT_PUBLIC_RESTAURANT_UPI_VPA || 'spicegarden@upi';
+  const restaurantName = process.env.NEXT_PUBLIC_RESTAURANT_NAME || 'Spice Garden';
+
+  // 1. Auth Guard Check
+  useEffect(() => {
+    const checkAuth = async () => {
+      setAuthChecking(true);
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profile && (profile.role === 'cashier' || profile.role === 'admin')) {
+            setCurrentUser(profile as Profile);
+          } else if (profile) {
+            setCurrentUser(null);
+          } else {
+            setCurrentUser({
+              id: session.user.id,
+              email: session.user.email!,
+              full_name: 'Cashier Staff',
+              role: 'cashier',
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Cashier auth check failed:', err);
+      } finally {
+        setAuthChecking(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // 2. Fetch Open Unpaid Orders
   const fetchOpenOrders = useCallback(async () => {
     setLoadingOrders(true);
     try {
@@ -47,38 +101,42 @@ export const CashierDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchOpenOrders();
+    if (currentUser) {
+      fetchOpenOrders();
 
-    // Realtime subscription for live billing table sync
-    const channel = supabase
-      .channel('cashier_orders_channel')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        () => {
-          fetchOpenOrders();
-        }
-      )
-      .subscribe();
+      const channel = supabase
+        .channel('cashier_orders_channel')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          () => {
+            fetchOpenOrders();
+          }
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchOpenOrders]);
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [currentUser, fetchOpenOrders]);
 
-  // 2. Select an Order & Initialize Billing State
+  // 3. Select an Order
   const handleSelectOrder = (order: Order) => {
     setSelectedOrder(order);
     setOrderItems(order.order_items || []);
-    setVerifiedAmount(Number(order.total_amount));
-    setCashTendered(order.total_amount.toString());
+    const total = Number(order.total_amount);
+    setVerifiedAmount(total);
+    setCashTendered(total.toString());
+    setSplitCashAmount((Math.floor(total / 2)).toString());
     setSearchBillNo(order.bill_no);
     setSearchError(null);
     setBillClosedSuccess(false);
     setNotificationStatus(null);
+    setWhatsappShareUrl(null);
   };
 
-  // 3. Search Handler for bill_no or table_no
+  // 4. Search Handler
   const handleSearchBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchBillNo.trim()) {
@@ -93,8 +151,6 @@ export const CashierDashboard: React.FC = () => {
 
     try {
       const term = searchBillNo.trim();
-
-      // Search by exact bill_no or table_no
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -120,11 +176,27 @@ export const CashierDashboard: React.FC = () => {
     }
   };
 
-  // 4. Change Due Calculation
+  // 5. Change Due Calculation
   const tendered = parseFloat(cashTendered) || 0;
   const changeDue = Math.max(0, tendered - verifiedAmount);
 
-  // 5. Close Bill Handler
+  // Split calculation
+  const splitCash = Math.min(verifiedAmount, Math.max(0, parseFloat(splitCashAmount) || 0));
+  const splitDigital = Math.max(0, verifiedAmount - splitCash);
+
+  // Dynamic UPI URL & QR
+  const upiIntentString = useMemo(() => {
+    if (!selectedOrder) return '';
+    const amountToPay = paymentMode === 'split' ? splitDigital : verifiedAmount;
+    return `upi://pay?pa=${restaurantVpa}&pn=${encodeURIComponent(restaurantName)}&am=${amountToPay.toFixed(2)}&cu=INR&tn=Bill%20${selectedOrder.bill_no}`;
+  }, [selectedOrder, verifiedAmount, splitDigital, paymentMode, restaurantVpa, restaurantName]);
+
+  const upiQrImageUrl = useMemo(() => {
+    if (!upiIntentString) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(upiIntentString)}`;
+  }, [upiIntentString]);
+
+  // 6. Close Bill Handler
   const handleCloseBill = async () => {
     if (!selectedOrder) return;
     if (verifiedAmount <= 0) {
@@ -134,15 +206,21 @@ export const CashierDashboard: React.FC = () => {
 
     setClosingBill(true);
     setNotificationStatus(null);
+    setWhatsappShareUrl(null);
 
     try {
+      const dbPaymentMode = paymentMode === 'split' ? 'cash' : paymentMode;
+
       // 1. Update order status to 'paid' in Supabase
       const { data: updatedOrder, error: updateError } = await supabase
         .from('orders')
         .update({
           status: 'paid',
-          payment_mode: paymentMode,
+          payment_mode: dbPaymentMode,
           total_amount: verifiedAmount,
+          notes: paymentMode === 'split'
+            ? `${selectedOrder.notes || ''} [Split Payment: Cash ₹${splitCash.toFixed(2)} + Digital ₹${splitDigital.toFixed(2)}]`.trim()
+            : selectedOrder.notes,
         })
         .eq('id', selectedOrder.id)
         .select(`*, order_items(*), waiter:waiters(*)`)
@@ -162,7 +240,7 @@ export const CashierDashboard: React.FC = () => {
         console.warn('PDF download warning:', pdfErr);
       }
 
-      // 3. Mock API Call to Send PDF to Customer Email & Phone
+      // 3. API Notification & WhatsApp Click-to-Chat Generation
       const notifyResult = await sendInvoiceNotification({
         order: finalOrder,
         email: finalOrder.customer_email || undefined,
@@ -171,6 +249,9 @@ export const CashierDashboard: React.FC = () => {
       });
 
       setNotificationStatus(notifyResult.message);
+      if (notifyResult.whatsappShareUrl) {
+        setWhatsappShareUrl(notifyResult.whatsappShareUrl);
+      }
 
       // Refresh unpaid queue
       fetchOpenOrders();
@@ -182,12 +263,33 @@ export const CashierDashboard: React.FC = () => {
     }
   };
 
-  // 6. Manual PDF Re-download
+  // 7. Manual PDF Re-download
   const handleManualDownloadPDF = async () => {
     if (selectedOrder) {
       await generateInvoicePDF(selectedOrder, orderItems);
     }
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+  };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-sm font-semibold">Verifying Cashier Till Session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Auth Guard Gate
+  if (!currentUser) {
+    return <CashierLogin onLoginSuccess={(profile) => setCurrentUser(profile)} />;
+  }
 
   return (
     <>
@@ -199,7 +301,7 @@ export const CashierDashboard: React.FC = () => {
       <div className="min-h-screen bg-slate-100 text-slate-800 pb-16">
         {/* Cashier Top Navigation */}
         <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-md border-b border-slate-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-xl shadow-md">
                 💰
@@ -207,12 +309,12 @@ export const CashierDashboard: React.FC = () => {
               <div>
                 <h1 className="text-lg font-black tracking-tight">Cashier POS Billing Counter</h1>
                 <p className="text-[11px] text-slate-400">
-                  Quick Settlements, Payment Processing & Instant PDF Invoicing
+                  Cashier: <strong className="text-emerald-400">{currentUser.full_name}</strong> ({currentUser.role})
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-700">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 Active Till
@@ -222,6 +324,12 @@ export const CashierDashboard: React.FC = () => {
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
               >
                 🔄 Sync Bills
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition"
+              >
+                Logout
               </button>
             </div>
           </div>
@@ -242,7 +350,7 @@ export const CashierDashboard: React.FC = () => {
                     <span className="absolute left-3.5 top-3 text-slate-400 text-sm">🔍</span>
                     <input
                       type="text"
-                      placeholder="Enter Bill No (e.g. BILL-1001 or Table No)"
+                      placeholder="Enter Bill No (e.g. BILL-1001 or Table)"
                       value={searchBillNo}
                       onChange={(e) => setSearchBillNo(e.target.value)}
                       className="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold uppercase tracking-wider text-slate-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -321,7 +429,7 @@ export const CashierDashboard: React.FC = () => {
 
                           <div className="text-right">
                             <span className="text-sm font-black text-orange-600">
-                              ₹{ord.total_amount.toFixed(2)}
+                              ₹{Number(ord.total_amount).toFixed(2)}
                             </span>
                             <p className="text-[10px] text-slate-400 font-medium">
                               {ord.order_items?.length || 0} items
@@ -405,7 +513,7 @@ export const CashierDashboard: React.FC = () => {
                   {/* Itemized Bill Table */}
                   <div>
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">
-                      Purchased Items
+                      Purchased Items ({orderItems.length})
                     </h4>
                     <div className="border border-slate-100 rounded-2xl overflow-hidden">
                       <table className="w-full text-left text-xs">
@@ -432,10 +540,10 @@ export const CashierDashboard: React.FC = () => {
                                 {item.quantity}
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-600">
-                                ₹{item.unit_price.toFixed(2)}
+                                ₹{Number(item.unit_price).toFixed(2)}
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-slate-900">
-                                ₹{item.total_price.toFixed(2)}
+                                ₹{Number(item.total_price).toFixed(2)}
                               </td>
                             </tr>
                           ))}
@@ -448,22 +556,22 @@ export const CashierDashboard: React.FC = () => {
                   <div className="bg-slate-50 p-4 rounded-2xl space-y-1.5 text-xs text-slate-600 border border-slate-100">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span className="font-semibold">₹{selectedOrder.subtotal.toFixed(2)}</span>
+                      <span className="font-semibold">₹{Number(selectedOrder.subtotal).toFixed(2)}</span>
                     </div>
                     {selectedOrder.discount_amount > 0 && (
                       <div className="flex justify-between text-green-600 font-semibold">
                         <span>Discount:</span>
-                        <span>- ₹{selectedOrder.discount_amount.toFixed(2)}</span>
+                        <span>- ₹{Number(selectedOrder.discount_amount).toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span>Taxes & GST (5%):</span>
-                      <span className="font-semibold">₹{selectedOrder.tax_amount.toFixed(2)}</span>
+                      <span>GST (5%):</span>
+                      <span className="font-semibold">₹{Number(selectedOrder.tax_amount).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
                       <span>Total Amount:</span>
                       <span className="text-orange-600">
-                        ₹{selectedOrder.total_amount.toFixed(2)}
+                        ₹{Number(selectedOrder.total_amount).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -473,7 +581,7 @@ export const CashierDashboard: React.FC = () => {
                     {/* Amount Verification Input */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Verify / Enter Final Settlement Amount (₹)
+                        Verify / Settle Amount (₹)
                       </label>
                       <input
                         type="number"
@@ -484,41 +592,67 @@ export const CashierDashboard: React.FC = () => {
                       />
                     </div>
 
-                    {/* Payment Method Toggle Buttons: Cash & Card */}
+                    {/* Payment Method Toggle Buttons: Cash, Card, UPI & Split Billing */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
                         Payment Method
                       </label>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-4 gap-2">
                         <button
                           type="button"
                           onClick={() => setPaymentMode('cash')}
-                          className={`py-3 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 border-2 transition-all ${
+                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
                             paymentMode === 'cash'
                               ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span className="text-lg">💵</span>
-                          <span>Cash Payment</span>
+                          <span>💵</span>
+                          <span>Cash</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setPaymentMode('card')}
-                          className={`py-3 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 border-2 transition-all ${
+                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
                             paymentMode === 'card'
                               ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span className="text-lg">💳</span>
-                          <span>Card Payment</span>
+                          <span>💳</span>
+                          <span>Card</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMode('upi')}
+                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
+                            paymentMode === 'upi'
+                              ? 'border-purple-600 bg-purple-50 text-purple-800 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>📱</span>
+                          <span>UPI QR</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPaymentMode('split')}
+                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
+                            paymentMode === 'split'
+                              ? 'border-amber-600 bg-amber-50 text-amber-800 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span>⚖️</span>
+                          <span>Split</span>
                         </button>
                       </div>
                     </div>
 
-                    {/* Cash Tendered & Change Return Calculator */}
+                    {/* MODE 1: Cash Tendered & Change Return Calculator */}
                     {paymentMode === 'cash' && (
                       <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-2">
                         <div className="flex items-center justify-between gap-3">
@@ -543,6 +677,84 @@ export const CashierDashboard: React.FC = () => {
                           <span>Change to Return:</span>
                           <span className="text-base text-emerald-700">₹{changeDue.toFixed(2)}</span>
                         </div>
+                      </div>
+                    )}
+
+                    {/* MODE 2: Dynamic UPI QR Code Scanner (High Priority Enhancement) */}
+                    {paymentMode === 'upi' && (
+                      <div className="p-4 rounded-3xl bg-purple-50 border-2 border-purple-200 text-purple-950 flex flex-col sm:flex-row items-center gap-4">
+                        <div className="w-36 h-36 bg-white p-2 rounded-2xl shadow-md flex items-center justify-center border border-purple-200 flex-shrink-0">
+                          <img
+                            src={upiQrImageUrl}
+                            alt="Dynamic UPI QR Code"
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="space-y-1 text-center sm:text-left flex-1">
+                          <span className="text-[10px] font-black uppercase tracking-wider bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-full inline-block">
+                            Dynamic UPI QR Code
+                          </span>
+                          <h4 className="text-lg font-black text-purple-950 mt-1">
+                            ₹{verifiedAmount.toFixed(2)}
+                          </h4>
+                          <p className="text-xs text-purple-800 font-medium">
+                            Customer scans with Google Pay, PhonePe, Paytm or BHIM
+                          </p>
+                          <p className="text-[11px] text-purple-600 font-mono pt-1">
+                            VPA: {restaurantVpa}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MODE 3: Split Billing Controls (Medium Priority Enhancement) */}
+                    {paymentMode === 'split' && (
+                      <div className="p-4 rounded-3xl bg-amber-50 border-2 border-amber-200 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-xs font-black text-amber-950">
+                            Split Payment Allocation
+                          </h5>
+                          <span className="text-[11px] font-bold text-amber-800">
+                            Total: ₹{verifiedAmount.toFixed(2)}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <label className="block text-slate-700 font-bold mb-1">
+                              💵 Cash Portion (₹)
+                            </label>
+                            <input
+                              type="number"
+                              value={splitCashAmount}
+                              onChange={(e) => setSplitCashAmount(e.target.value)}
+                              className="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl font-black text-slate-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-slate-700 font-bold mb-1">
+                              📱 Digital / UPI (₹)
+                            </label>
+                            <div className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-purple-700">
+                              ₹{splitDigital.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {splitDigital > 0 && (
+                          <div className="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center justify-between text-xs">
+                            <span className="text-purple-800 font-semibold">UPI Link for ₹{splitDigital.toFixed(2)}</span>
+                            <a
+                              href={upiIntentString}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] font-bold text-purple-700 underline"
+                            >
+                              Show UPI Intent ↗
+                            </a>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -573,15 +785,28 @@ export const CashierDashboard: React.FC = () => {
                           )}
                         </button>
                       ) : (
-                        <div className="flex-1 flex gap-2">
+                        <div className="flex-1 flex flex-col sm:flex-row gap-2">
                           <div className="flex-1 py-3 px-4 bg-emerald-100 text-emerald-800 font-black text-xs rounded-2xl text-center flex items-center justify-center gap-1.5 border border-emerald-200">
                             <span>✅</span>
-                            <span>This Bill has been Settled & Paid</span>
+                            <span>Bill Settled & Paid</span>
                           </div>
+
+                          {whatsappShareUrl && (
+                            <a
+                              href={whatsappShareUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 shadow transition"
+                            >
+                              <span>📲</span>
+                              <span>WhatsApp Bill</span>
+                            </a>
+                          )}
+
                           <button
                             type="button"
                             onClick={handleManualDownloadPDF}
-                            className="px-4 py-3 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-2xl flex items-center gap-1.5 transition"
+                            className="px-4 py-3 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 transition"
                           >
                             <span>📥</span>
                             <span>Download PDF</span>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 import { MenuItem, Offer, Order } from '../types/database.types';
 import { CartItem } from '../types/cart.types';
@@ -8,6 +9,7 @@ import { CheckoutModal } from '../components/CustomerMenu/CheckoutModal';
 import { OrderSuccessModal } from '../components/CustomerMenu/OrderSuccessModal';
 
 export const CustomerMenuPage: React.FC = () => {
+  const router = useRouter();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,16 +17,32 @@ export const CustomerMenuPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Table QR Detection & Locking State (Issue 7 Fix)
+  const [scannedTable, setScannedTable] = useState<string>('');
+  const [isTableLocked, setIsTableLocked] = useState<boolean>(false);
+
   // Modals
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const [orderAppended, setOrderAppended] = useState<boolean>(false);
 
-  // 1. Fetch Menu Items and Active Offers from Supabase
+  // 1. Detect Table QR code from URL query string
+  useEffect(() => {
+    if (router.isReady && router.query.table) {
+      let t = String(router.query.table).trim().toUpperCase();
+      if (!t.startsWith('T-') && !t.startsWith('VIP') && !t.startsWith('GARDEN')) {
+        t = `T-${t.padStart(2, '0')}`;
+      }
+      setScannedTable(t);
+      setIsTableLocked(true);
+    }
+  }, [router.isReady, router.query.table]);
+
+  // 2. Fetch Menu Items and Active Offers from Supabase
   useEffect(() => {
     const fetchMenuAndOffers = async () => {
       setLoading(true);
       try {
-        // Fetch only available menu items (or all and filter client side)
         const { data: itemsData, error: itemsError } = await supabase
           .from('menu_items')
           .select('*')
@@ -34,7 +52,6 @@ export const CustomerMenuPage: React.FC = () => {
         if (itemsError) throw itemsError;
         setMenuItems(itemsData || []);
 
-        // Fetch active offers
         const { data: offersData, error: offersError } = await supabase
           .from('offers')
           .select('*')
@@ -52,16 +69,15 @@ export const CustomerMenuPage: React.FC = () => {
     fetchMenuAndOffers();
   }, []);
 
-  // 2. Extract unique categories
+  // 3. Extract unique categories
   const categories = useMemo(() => {
     const list = Array.from(new Set(menuItems.map((item) => item.category)));
     return ['All', ...list];
   }, [menuItems]);
 
-  // 3. Filter menu items by category and search
+  // 4. Filter menu items by category and search
   const filteredItems = useMemo(() => {
     return menuItems.filter((item) => {
-      // Rule: if is_available is false, hide the item
       if (!item.is_available) return false;
 
       const matchesCategory =
@@ -75,14 +91,13 @@ export const CustomerMenuPage: React.FC = () => {
     });
   }, [menuItems, selectedCategory, searchQuery]);
 
-  // 4. Cart management functions
+  // 5. Cart management functions
   const handleAddToCart = (item: MenuItem, offer?: Offer) => {
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (ci) => ci.menuItem.id === item.id && ci.appliedOffer?.id === offer?.id
       );
 
-      // Calculate unit price considering offer
       let unitPrice = item.price;
       if (offer?.discount_details) {
         if (offer.discount_details.type === 'percentage') {
@@ -138,7 +153,7 @@ export const CustomerMenuPage: React.FC = () => {
     });
   };
 
-  // 5. Total calculations
+  // 6. Total calculations
   const totalItemCount = cart.reduce((acc, curr) => acc + curr.quantity, 0);
 
   const subtotal = cart.reduce(
@@ -175,7 +190,13 @@ export const CustomerMenuPage: React.FC = () => {
           </div>
 
           <div className="text-right">
-            <span className="text-[11px] text-gray-400 font-medium">Digital Ordering</span>
+            {isTableLocked ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-black">
+                <span>🔒</span> Table {scannedTable}
+              </span>
+            ) : (
+              <span className="text-[11px] text-gray-400 font-medium">Digital Ordering</span>
+            )}
           </div>
         </div>
 
@@ -292,7 +313,7 @@ export const CustomerMenuPage: React.FC = () => {
                   {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'} in cart
                 </p>
                 <p className="text-base font-extrabold tracking-tight">
-                  ₹{(discountedTotal + (discountedTotal * 0.05)).toFixed(2)}{' '}
+                  ₹{(discountedTotal + discountedTotal * 0.05).toFixed(2)}{' '}
                   <span className="text-[10px] font-normal text-orange-200">incl. GST</span>
                 </p>
               </div>
@@ -309,7 +330,7 @@ export const CustomerMenuPage: React.FC = () => {
         </div>
       )}
 
-      {/* Checkout Modal */}
+      {/* Checkout Modal with QR Table Locking & Server Pricing Verification */}
       <CheckoutModal
         isOpen={isCheckoutOpen}
         onClose={() => setIsCheckoutOpen(false)}
@@ -317,18 +338,25 @@ export const CustomerMenuPage: React.FC = () => {
         subtotal={subtotal}
         discount={discountAmount}
         taxRate={0.05}
-        onOrderSuccess={(order) => {
+        initialTableNo={scannedTable}
+        isTableLocked={isTableLocked}
+        onOrderSuccess={(order, isAppended) => {
           setIsCheckoutOpen(false);
           setCart([]);
+          setOrderAppended(Boolean(isAppended));
           setCompletedOrder(order);
         }}
       />
 
-      {/* Order Success Modal */}
+      {/* Order Success Modal with Multi-Round Feedback */}
       {completedOrder && (
         <OrderSuccessModal
           order={completedOrder}
-          onReset={() => setCompletedOrder(null)}
+          isAppended={orderAppended}
+          onReset={() => {
+            setCompletedOrder(null);
+            setOrderAppended(false);
+          }}
         />
       )}
     </div>
