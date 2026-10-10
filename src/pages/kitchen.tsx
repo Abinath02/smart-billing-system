@@ -261,26 +261,33 @@ export const KitchenDashboard: React.FC = () => {
   };
 
   // 7. Action: Assign Waiter and Mark as Ready
-  const handleAssignWaiterAndReady = async (waiterId: string) => {
-    if (!selectedOrderForAssign) return;
+  const handleAssignWaiterAndReady = async (firstArg: string, secondArg?: string) => {
+    // Correctly resolve orderId and waiterId regardless of call style
+    const targetOrderId = secondArg ? firstArg : selectedOrderForAssign?.id;
+    const targetWaiterId = secondArg ? secondArg : firstArg;
+
+    if (!targetOrderId) {
+      alert('Error: No active order selected for dispatch.');
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('orders')
         .update({
           status: 'ready',
-          waiter_id: waiterId,
+          waiter_id: targetWaiterId || null,
         })
-        .eq('id', selectedOrderForAssign.id);
+        .eq('id', targetOrderId);
 
       if (error) throw error;
 
       // Update local state
-      const assignedWaiter = waiters.find((w) => w.id === waiterId);
+      const assignedWaiter = waiters.find((w) => w.id === targetWaiterId);
       setOrders((prev) =>
         prev.map((o) =>
-          o.id === selectedOrderForAssign.id
-            ? { ...o, status: 'ready', waiter_id: waiterId, waiter: assignedWaiter }
+          o.id === targetOrderId
+            ? { ...o, status: 'ready', waiter_id: targetWaiterId, waiter: assignedWaiter }
             : o
         )
       );
@@ -288,6 +295,7 @@ export const KitchenDashboard: React.FC = () => {
       setIsAssignModalOpen(false);
       setSelectedOrderForAssign(null);
     } catch (err: any) {
+      console.error('Error assigning waiter:', err);
       alert('Error assigning waiter: ' + err.message);
     }
   };
@@ -629,7 +637,7 @@ export const KitchenDashboard: React.FC = () => {
             setIsAssignModalOpen(false);
             setSelectedOrderForAssign(null);
           }}
-          onAssign={handleAssignWaiterAndReady}
+          onAssign={(orderId, waiterId) => handleAssignWaiterAndReady(orderId, waiterId)}
           onOpenAddWaiter={() => setIsAddWaiterModalOpen(true)}
         />
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Waiter, Order } from '../../types/database.types';
 
 interface AssignWaiterModalProps {
@@ -21,6 +21,20 @@ export const AssignWaiterModal: React.FC<AssignWaiterModalProps> = ({
   const [selectedWaiterId, setSelectedWaiterId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      if (order?.waiter_id) {
+        setSelectedWaiterId(order.waiter_id);
+      } else if (waiters && waiters.length > 0) {
+        const firstActive = waiters.find((w) => w.is_active);
+        if (firstActive) setSelectedWaiterId(firstActive.id);
+      } else {
+        setSelectedWaiterId('');
+      }
+    }
+  }, [isOpen, order, waiters]);
 
   if (!isOpen || !order) return null;
 
