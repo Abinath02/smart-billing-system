@@ -45,13 +45,22 @@ export const CashierDashboard: React.FC = () => {
         } = await supabase.auth.getSession();
 
         if (session?.user) {
-          const { data: profile } = await supabase
+          let { data: profile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
 
-          if (profile && (profile.role === 'cashier' || profile.role === 'admin') && profile.is_active) {
+          if (!profile && session.user.email) {
+            const { data: profileByEmail } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('email', session.user.email.toLowerCase())
+              .single();
+            if (profileByEmail) profile = profileByEmail;
+          }
+
+          if (profile && (profile.role === 'cashier' || profile.role === 'admin') && profile.is_active !== false) {
             setCurrentUser(profile as Profile);
           } else {
             setCurrentUser(null);

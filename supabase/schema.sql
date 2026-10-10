@@ -245,17 +245,19 @@ CREATE POLICY "Customers can insert order items" ON public.order_items
 CREATE POLICY "Customers can view order items" ON public.order_items
     FOR SELECT USING (true);
 
--- Profiles: users can read their own profile, admins can read all
-CREATE POLICY "Users can read own profile" ON public.profiles
-    FOR SELECT USING (auth.uid() = id);
+-- Profiles: Allow reading profiles without infinite recursion
+DROP POLICY IF EXISTS "Admins can view and manage all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
 
-CREATE POLICY "Admins can view and manage all profiles" ON public.profiles
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-        )
-    );
+CREATE POLICY "Allow read profiles" ON public.profiles
+    FOR SELECT USING (true);
+
+CREATE POLICY "Allow update profiles" ON public.profiles
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow insert profiles" ON public.profiles
+    FOR INSERT WITH CHECK (true);
+
 
 -- ====================================================================
 -- 9. REALTIME SUBSCRIPTIONS (For Kitchen Display & Live Billing POS)

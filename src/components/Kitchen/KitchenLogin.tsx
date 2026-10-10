@@ -31,26 +31,41 @@ export const KitchenLogin: React.FC<KitchenLoginProps> = ({ onLoginSuccess }) =>
       }
 
       // 2. Strict Role Verification from profiles table
-      const { data: profile, error: profileErr } = await supabase
+      let { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', signInData.user.id)
         .single();
 
-      if (profileErr || !profile) {
-        // Sign out immediately if unauthorized
-        await supabase.auth.signOut();
-        throw new Error('No staff profile found for this account. Only registered staff created by Admin can sign in.');
+      if (!profile && signInData.user.email) {
+        const { data: profileByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', signInData.user.email.toLowerCase())
+          .single();
+        if (profileByEmail) {
+          profile = profileByEmail;
+          profileErr = null;
+        }
       }
 
-      if (!profile.is_active) {
+      if (profileErr || !profile) {
+        console.error('Kitchen profile lookup failed:', profileErr);
+        await supabase.auth.signOut();
+        throw new Error(
+          profileErr?.message ||
+          'No staff profile found for this account. Only registered staff created by Admin can sign in.'
+        );
+      }
+
+      if (profile.is_active === false) {
         await supabase.auth.signOut();
         throw new Error('Your staff account is currently inactive. Contact Admin to re-activate.');
       }
 
       if (profile.role !== 'kitchen' && profile.role !== 'admin') {
         await supabase.auth.signOut();
-        throw new Error('Access denied. Kitchen Staff or Admin credentials required.');
+        throw new Error(`Access denied. Found role "${profile.role}", but Kitchen Staff or Admin credentials are required.`);
       }
 
       onLoginSuccess(profile as Profile);

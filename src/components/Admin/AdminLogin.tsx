@@ -79,23 +79,39 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         if (signInErr) throw signInErr;
 
         if (signInData.user) {
-          const { data: profile, error: profileErr } = await supabase
+          let { data: profile, error: profileErr } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', signInData.user.id)
             .single();
 
+          if (!profile && signInData.user.email) {
+            const { data: profileByEmail } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('email', signInData.user.email.toLowerCase())
+              .single();
+            if (profileByEmail) {
+              profile = profileByEmail;
+              profileErr = null;
+            }
+          }
+
           if (profileErr || !profile) {
+            console.error('Admin profile lookup failed:', profileErr);
             await supabase.auth.signOut();
-            throw new Error('No administrator profile found. Administrator privileges required.');
+            throw new Error(
+              profileErr?.message ||
+              'No administrator profile found in database. Administrator privileges required.'
+            );
           }
 
           if (profile.role !== 'admin') {
             await supabase.auth.signOut();
-            throw new Error('Access denied. Administrator privileges required to enter portal.');
+            throw new Error(`Access denied. Found role "${profile.role}", but Administrator role is required.`);
           }
 
-          if (!profile.is_active) {
+          if (profile.is_active === false) {
             await supabase.auth.signOut();
             throw new Error('Administrator account is currently inactive.');
           }

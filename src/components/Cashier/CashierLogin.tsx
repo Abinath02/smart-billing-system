@@ -31,25 +31,41 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
       }
 
       // 2. Strict Role Verification from profiles table
-      const { data: profile, error: profileErr } = await supabase
+      let { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', signInData.user.id)
         .single();
 
-      if (profileErr || !profile) {
-        await supabase.auth.signOut();
-        throw new Error('No staff profile found. Only accounts registered by the Restaurant Admin can access POS.');
+      if (!profile && signInData.user.email) {
+        const { data: profileByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', signInData.user.email.toLowerCase())
+          .single();
+        if (profileByEmail) {
+          profile = profileByEmail;
+          profileErr = null;
+        }
       }
 
-      if (!profile.is_active) {
+      if (profileErr || !profile) {
+        console.error('Cashier profile lookup failed:', profileErr);
+        await supabase.auth.signOut();
+        throw new Error(
+          profileErr?.message ||
+          'No staff profile found. Only accounts registered by the Restaurant Admin can access POS.'
+        );
+      }
+
+      if (profile.is_active === false) {
         await supabase.auth.signOut();
         throw new Error('Your cashier account is currently inactive. Please contact Admin.');
       }
 
       if (profile.role !== 'cashier' && profile.role !== 'admin') {
         await supabase.auth.signOut();
-        throw new Error('Access denied. Only Cashier and Admin staff can access POS billing.');
+        throw new Error(`Access denied. Found role "${profile.role}", but Cashier or Admin staff access is required.`);
       }
 
       onLoginSuccess(profile as Profile);
