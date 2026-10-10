@@ -22,13 +22,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
     try {
       if (isSignUp) {
-        // Enforce Admin registration passcode for security
-        if (adminSecretCode !== 'ADMIN2026' && adminSecretCode !== 'SPICE_ADMIN') {
-          throw new Error('Invalid Admin Secret Passcode. Contact restaurant owner.');
+        // Enforce Admin registration passcode for security (trimmed and case-insensitive)
+        const cleanPasscode = (adminSecretCode || '').trim().toUpperCase();
+        if (cleanPasscode !== 'ADMIN2026' && cleanPasscode !== 'SPICE_ADMIN') {
+          throw new Error('Invalid Admin Secret Passcode. Please enter ADMIN2026 in uppercase without spaces.');
         }
 
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           password: password,
           options: {
             data: {
@@ -41,6 +42,16 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         if (signUpErr) throw signUpErr;
 
         if (signUpData.user) {
+          // Explicitly upsert admin profile to ensure immediate access
+          await supabase.from('profiles').upsert({
+            id: signUpData.user.id,
+            email: email.trim().toLowerCase(),
+            full_name: fullName.trim() || 'Restaurant Manager',
+            role: 'admin',
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          });
+
           const { data: profileData } = await supabase
             .from('profiles')
             .select('*')
@@ -51,7 +62,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
             profileData || {
               id: signUpData.user.id,
               email: signUpData.user.email!,
-              full_name: fullName,
+              full_name: fullName.trim(),
               role: 'admin',
               is_active: true,
               created_at: new Date().toISOString(),

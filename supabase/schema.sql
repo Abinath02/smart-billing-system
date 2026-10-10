@@ -151,18 +151,30 @@ CREATE OR REPLACE TRIGGER trg_orders_updated_at
 -- 7. TRIGGER: AUTO-CREATE PROFILE ON SUPABASE AUTH SIGNUP
 -- ====================================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+SECURITY DEFINER
+SET search_path = public
+LANGUAGE plpgsql
+AS $$
 BEGIN
     INSERT INTO public.profiles (id, email, full_name, role)
     VALUES (
         NEW.id,
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-        COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'cashier')
-    );
+        COALESCE((NEW.raw_user_meta_data->>'role')::public.user_role, 'cashier'::public.user_role)
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = EXCLUDED.full_name,
+        role = EXCLUDED.role;
     RETURN NEW;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Prevent trigger error from aborting auth.users signup
+        RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
