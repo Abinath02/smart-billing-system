@@ -313,8 +313,8 @@ export const CustomerMenuPage: React.FC = () => {
                   {totalItemCount} {totalItemCount === 1 ? 'item' : 'items'} in cart
                 </p>
                 <p className="text-base font-extrabold tracking-tight">
-                  ₹{(discountedTotal + discountedTotal * 0.05).toFixed(2)}{' '}
-                  <span className="text-[10px] font-normal text-orange-200">incl. GST</span>
+                  Rs. {(discountedTotal + discountedTotal * 0.05).toFixed(2)}{' '}
+                  <span className="text-[10px] font-normal text-orange-200">incl. tax</span>
                 </p>
               </div>
             </div>

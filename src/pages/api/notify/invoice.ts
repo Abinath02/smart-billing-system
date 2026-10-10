@@ -41,7 +41,7 @@ export default async function handler(
             html: `
               <h2>Thank you for dining with us!</h2>
               <p>Hi ${order.customer_name || 'Guest'},</p>
-              <p>Your payment for <strong>Table ${order.table_no}</strong> (Bill #${order.bill_no}) of <strong>₹${order.total_amount}</strong> was successfully received.</p>
+              <p>Your payment for <strong>Table ${order.table_no}</strong> (Bill #${order.bill_no}) of <strong>Rs. ${order.total_amount}</strong> was successfully received.</p>
               <p>Please find your tax receipt attached or saved with this confirmation.</p>
               <br/>
               <p><em>Spice Garden Restaurant</em></p>

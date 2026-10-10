@@ -68,7 +68,7 @@ export async function generateInvoicePDF(order: Order, items: OrderItem[]): Prom
     doc.text('Item', margin, y);
     doc.text('Qty', 45, y, { align: 'center' });
     doc.text('Rate', 58, y, { align: 'right' });
-    doc.text('Amt (₹)', pageWidth - margin, y, { align: 'right' });
+    doc.text('Amt (Rs)', pageWidth - margin, y, { align: 'right' });
     y += 3;
 
     doc.setLineDashPattern([], 0);
@@ -95,17 +95,17 @@ export async function generateInvoicePDF(order: Order, items: OrderItem[]): Prom
     // 5. Bill Summary Calculations
     doc.setFont('helvetica', 'normal');
     doc.text('Subtotal:', 40, y);
-    doc.text(`₹${order.subtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    doc.text(`Rs. ${order.subtotal.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
     y += 4;
 
     if (order.discount_amount && order.discount_amount > 0) {
       doc.text('Discount:', 40, y);
-      doc.text(`- ₹${order.discount_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+      doc.text(`- Rs. ${order.discount_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
       y += 4;
     }
 
-    doc.text('GST (5%):', 40, y);
-    doc.text(`₹${order.tax_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    doc.text('Tax / Service (5%):', 35, y);
+    doc.text(`Rs. ${order.tax_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
     y += 4;
 
     doc.setLineDashPattern([], 0);
@@ -116,7 +116,7 @@ export async function generateInvoicePDF(order: Order, items: OrderItem[]): Prom
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.text('GRAND TOTAL:', margin, y);
-    doc.text(`₹${order.total_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
+    doc.text(`Rs. ${order.total_amount.toFixed(2)}`, pageWidth - margin, y, { align: 'right' });
     y += 5;
 
     // Payment Mode

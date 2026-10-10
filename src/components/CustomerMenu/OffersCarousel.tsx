@@ -36,7 +36,7 @@ export const OffersCarousel: React.FC<OffersCarouselProps> = ({
           const discountText =
             offer.discount_details?.type === 'percentage'
               ? `${offer.discount_details.value}% OFF`
-              : `₹${offer.discount_details?.value || 0} OFF`;
+              : `Rs. ${offer.discount_details?.value || 0} OFF`;
 
           return (
             <div
@@ -78,7 +78,7 @@ export const OffersCarousel: React.FC<OffersCarouselProps> = ({
                   {linkedItem && (
                     <div className="flex items-baseline space-x-1.5">
                       <span className="text-sm font-extrabold text-white">
-                        ₹
+                        Rs.{' '}
                         {offer.discount_details?.type === 'percentage'
                           ? Math.round(
                               linkedItem.price * (1 - (offer.discount_details.value || 0) / 100)
@@ -86,7 +86,7 @@ export const OffersCarousel: React.FC<OffersCarouselProps> = ({
                           : Math.max(0, linkedItem.price - (offer.discount_details?.value || 0))}
                       </span>
                       <span className="text-xs text-orange-200 line-through">
-                        ₹{linkedItem.price}
+                        Rs. {linkedItem.price}
                       </span>
                     </div>
                   )}

@@ -49,20 +49,19 @@ The **Smart Restaurant Billing & Order Management System** is a cloud-based, mul
 
 Customers access the digital menu by scanning a QR code placed on their dining table. The system automatically reads the table number from the URL parameter `?table=...` without needing customer authentication.
 
-### QR Code URL Structure:
+### Built-in Admin QR Generator:
+The system includes a **built-in Table & QR Card Generator** inside the **Admin Portal (`/admin` -> Tables & QR Codes tab)**:
+1. Admin can add any custom table number (e.g., `T-01`, `T-02`, `VIP-01`, `OUT-01`) along with seating capacity and floor zone.
+2. An instant scannable high-resolution QR card is generated dynamically on screen.
+3. Admin can click **"Download QR (PNG)"** to print high-quality stickers for table placement, or **"Open Live Table Menu"** to preview immediately.
+
+### Direct QR Code URL Structure:
 * **Table 1**: `https://smart-billing-system-blond.vercel.app/?table=T-01`
 * **Table 2**: `https://smart-billing-system-blond.vercel.app/?table=T-02`
 * **Table 3**: `https://smart-billing-system-blond.vercel.app/?table=T-03`
 * **Table 4**: `https://smart-billing-system-blond.vercel.app/?table=T-04`
 * **Table 5**: `https://smart-billing-system-blond.vercel.app/?table=T-05`
-*(You can use any table identifier such as `T-01`, `TABLE_5`, `VIP-1`, etc.)*
-
-### How to Create & Print Table QR Codes:
-1. Open any free QR code generator (e.g., [qr-code-generator.com](https://www.qr-code-generator.com/) or Canva).
-2. Paste the target table URL (e.g., `https://smart-billing-system-blond.vercel.app/?table=T-01`).
-3. Download the QR code as high-resolution PNG or SVG.
-4. Print the QR code cards and place them on the respective restaurant dining tables.
-5. When a diner scans the QR code with their mobile camera, the menu opens instantly with Table `T-01` locked in, and all orders are routed directly to the kitchen with that table number.
+*(Supports any table identifier such as `T-01`, `TABLE_5`, `VIP-1`, etc.)*
 
 ---
 
@@ -72,17 +71,22 @@ Follow these 5 testing steps to test every single feature of the system:
 
 ### 📍 Step 1: Admin Portal Configuration
 1. Open **[https://smart-billing-system-blond.vercel.app/admin](https://smart-billing-system-blond.vercel.app/admin)**.
-2. Sign in with `mrd426004@gmail.com`.
+2. Sign in with `mrd426004@gmail.com` (Registration option is securely hidden for unauthorized users).
 3. **Staff Management**:
    * Click **Staff Management** tab.
    * Add a new staff member (Name, Email, Role: `kitchen` or `cashier`, Password).
-   * Note that only Admins can create staff accounts.
-4. **Food Menu & Pricing Management**:
+   * Only Admins can create staff accounts.
+4. **Food Menu & Pricing Management (Add Foods)**:
    * Click **Menu & Pricing** tab.
-   * View live food items, categories (Biryani, Burger, Drinks, Desserts), and prices.
+   * View live food items and prices in **LKR (Rs.)**.
+   * Click **"+ Add New Dish"** button: Enter Food Name, Category (Rice & Biryani, Kottu & Roti, Curries, Short Eats, Beverages), Price (Rs.), Preparation Time, and Image URL. Click **"Add Dish to Database"** to instantly publish it.
    * Click **"Seed Standard Menu"** to load standard restaurant items with updated prices if empty.
    * Edit or update any item's price inline and click save.
-5. **Raw Material Inventory Tracking**:
+5. **Table Management & Dynamic QR Code Cards**:
+   * Click **Tables & QR Codes** tab.
+   * Add new tables with custom names, seating capacity, and floor zones.
+   * Download high-resolution PNG QR cards ready for printing.
+6. **Raw Material Inventory Tracking**:
    * Click **Inventory Stock** tab.
    * Review primary raw materials (e.g., Basmati Rice, Chicken, Cooking Oil, Burger Buns, Salt, Sugar).
    * Notice current stock levels, units (kg, liters, pcs), and alert thresholds.
@@ -95,10 +99,12 @@ Follow these 5 testing steps to test every single feature of the system:
 2. Confirm the page displays:
    * **Table T-01 Badge** at the top.
    * **Clean Customer Interface**: No admin links, no cashier buttons, no login required.
-3. Browse food categories (Starters, Main Course, Fast Food, Beverages).
+   * All prices displayed in **Sri Lankan Rupees (Rs. / LKR)**.
+3. Browse food categories (Rice & Biryani, Kottu, Starters, Main Course, Fast Food, Beverages).
 4. Add items to cart (e.g., 2x Chicken Biryani, 1x Fresh Lime Soda).
 5. Open Cart, verify total price calculation, and click **"Place Order"**.
-6. The screen confirms: **"Order Placed Successfully! Sent to Kitchen"** with an Order Reference Number.
+6. Enter Customer Name and **Sri Lankan Phone Number** (e.g., `771234567` or `0771234567`, country code `+94` 🇱🇰).
+7. The screen confirms: **"Order Placed Successfully! Sent to Kitchen"** with an Order Reference Number.
 
 ---
 
@@ -122,21 +128,18 @@ Follow these 5 testing steps to test every single feature of the system:
 ### 📍 Step 4: Cashier Counter (POS) Settlement & Invoicing
 1. Open **[https://smart-billing-system-blond.vercel.app/cashier](https://smart-billing-system-blond.vercel.app/cashier)**.
 2. Log in with a Cashier account.
-3. Observe active table orders:
-   * Find **Table T-01** with the ready order.
-4. Click on the order to open the **Bill Settlement Window**:
-   * Subtotal calculated automatically.
-   * Automated **5% GST** breakdown applied.
-   * Option to enter a special restaurant discount.
-5. Select the payment method:
-   * **Cash**
-   * **UPI / Dynamic QR Code** (generates on-screen QR for customer phone scan)
-   * **Card**
-   * **Split Payment** (allows customer to pay partly in Cash and partly via UPI/Card)
-6. Click **"Settle Bill & Print Invoice"**:
-   * Generates a thermal/A4 tax invoice PDF with restaurant name, tax breakdown, and date.
-   * Order status is marked as `settled`/`completed`.
-   * Table T-01 is freed up for the next customer.
+3. **Active Bills & Settlement**:
+   * Find **Table T-01** under **"🔔 Awaiting Settlement"**.
+   * Click on the order to open the **Bill Settlement Window**:
+     * Subtotal calculated automatically in **Rs.**.
+     * Automated **5% GST / Tax** breakdown applied.
+     * Select payment method: **Cash**, **QR Code**, **Card**, or **Split Payment**.
+     * Click **"Settle Bill & Print Invoice"** to generate a thermal/A4 tax invoice PDF with order status marked as `settled`.
+4. **Historical Past Bills View (கடந்த கால பில்கள்)**:
+   * Click on the **"📜 Past Bills History"** tab.
+   * Cashier can inspect all previously settled bills.
+   * Search through past bills by Order ID, Table number, or Customer Name.
+   * Click **"Reprint Receipt (PDF)"** to re-download or print past invoices anytime.
 
 ---
 

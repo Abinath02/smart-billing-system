@@ -79,6 +79,10 @@ export const CashierDashboard: React.FC = () => {
     checkAuth();
   }, []);
 
+  const [cashierViewTab, setCashierViewTab] = useState<'active' | 'history'>('active');
+  const [pastPaidOrders, setPastPaidOrders] = useState<Order[]>([]);
+  const [historySearch, setHistorySearch] = useState<string>('');
+
   // 2. Fetch Open Unpaid Orders
   const fetchOpenOrders = useCallback(async () => {
     setLoadingOrders(true);
@@ -102,9 +106,31 @@ export const CashierDashboard: React.FC = () => {
     }
   }, []);
 
+  // 2b. Fetch Past Settled (Paid) Bills
+  const fetchPastOrders = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (*),
+          waiter:waiters (*)
+        `)
+        .eq('status', 'paid')
+        .order('updated_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setPastPaidOrders((data as Order[]) || []);
+    } catch (err: any) {
+      console.error('Error fetching past orders:', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentUser) {
       fetchOpenOrders();
+      fetchPastOrders();
 
       const channel = supabase
         .channel('cashier_orders_channel')
@@ -113,6 +139,7 @@ export const CashierDashboard: React.FC = () => {
           { event: '*', schema: 'public', table: 'orders' },
           () => {
             fetchOpenOrders();
+            fetchPastOrders();
           }
         )
         .subscribe();
@@ -121,7 +148,7 @@ export const CashierDashboard: React.FC = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [currentUser, fetchOpenOrders]);
+  }, [currentUser, fetchOpenOrders, fetchPastOrders]);
 
   // 3. Select an Order
   const handleSelectOrder = (order: Order) => {
@@ -221,7 +248,7 @@ export const CashierDashboard: React.FC = () => {
           payment_mode: dbPaymentMode,
           total_amount: verifiedAmount,
           notes: paymentMode === 'split'
-            ? `${selectedOrder.notes || ''} [Split Payment: Cash ₹${splitCash.toFixed(2)} + Digital ₹${splitDigital.toFixed(2)}]`.trim()
+            ? `${selectedOrder.notes || ''} [Split Payment: Cash Rs. ${splitCash.toFixed(2)} + Digital Rs. ${splitDigital.toFixed(2)}]`.trim()
             : selectedOrder.notes,
         })
         .eq('id', selectedOrder.id)
@@ -255,8 +282,9 @@ export const CashierDashboard: React.FC = () => {
         setWhatsappShareUrl(notifyResult.whatsappShareUrl);
       }
 
-      // Refresh unpaid queue
+      // Refresh both queues
       fetchOpenOrders();
+      fetchPastOrders();
     } catch (err: any) {
       console.error('Error closing bill:', err);
       alert('Failed to close bill: ' + err.message);
@@ -374,73 +402,183 @@ export const CashierDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Live Pending & Ready Bills Queue */}
+              {/* Live Pending & Ready Bills Queue vs Past Bills History Tabs */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
-                    Awaiting Settlement ({unpaidOrders.length})
-                  </h3>
-                  <span className="text-[11px] text-slate-400 font-medium">Click to Load</span>
+                {/* Tab Buttons */}
+                <div className="flex bg-slate-100 p-1 rounded-2xl mb-3.5 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCashierViewTab('active')}
+                    className={`flex-1 py-2 text-xs font-black rounded-xl transition ${
+                      cashierViewTab === 'active'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    🔔 Awaiting ({unpaidOrders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCashierViewTab('history');
+                      fetchPastOrders();
+                    }}
+                    className={`flex-1 py-2 text-xs font-black rounded-xl transition ${
+                      cashierViewTab === 'history'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    📜 Past Bills ({pastPaidOrders.length})
+                  </button>
                 </div>
 
-                {loadingOrders ? (
-                  <div className="space-y-2">
-                    {[1, 2, 3].map((n) => (
-                      <div key={n} className="h-16 bg-slate-50 rounded-2xl animate-pulse" />
-                    ))}
-                  </div>
-                ) : unpaidOrders.length === 0 ? (
-                  <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl">
-                    <span className="text-3xl">🎉</span>
-                    <p className="text-xs font-bold text-slate-700 mt-2">All Bills Settled!</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">No unpaid tables right now.</p>
-                  </div>
+                {cashierViewTab === 'active' ? (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                        Active Unpaid Tables
+                      </h3>
+                      <span className="text-[10px] text-slate-400 font-medium">Click to Settle</span>
+                    </div>
+
+                    {loadingOrders ? (
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((n) => (
+                          <div key={n} className="h-16 bg-slate-50 rounded-2xl animate-pulse" />
+                        ))}
+                      </div>
+                    ) : unpaidOrders.length === 0 ? (
+                      <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl">
+                        <span className="text-3xl">🎉</span>
+                        <p className="text-xs font-bold text-slate-700 mt-2">All Bills Settled!</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">No unpaid tables right now.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                        {unpaidOrders.map((ord) => {
+                          const isSelected = selectedOrder?.id === ord.id;
+                          return (
+                            <div
+                              key={ord.id}
+                              onClick={() => handleSelectOrder(ord)}
+                              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                                isSelected
+                                  ? 'border-orange-500 bg-orange-50/60 shadow-md ring-2 ring-orange-200'
+                                  : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-slate-900 text-sm">
+                                    Table {ord.table_no}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
+                                      ord.status === 'ready'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}
+                                  >
+                                    {ord.status}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-mono text-slate-400 font-medium">
+                                  {ord.bill_no}
+                                </span>
+                              </div>
+
+                              <div className="text-right">
+                                <span className="text-sm font-black text-orange-600">
+                                  Rs. {Number(ord.total_amount).toFixed(2)}
+                                </span>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                  {ord.order_items?.length || 0} items
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-                    {unpaidOrders.map((ord) => {
-                      const isSelected = selectedOrder?.id === ord.id;
-                      return (
-                        <div
-                          key={ord.id}
-                          onClick={() => handleSelectOrder(ord)}
-                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                            isSelected
-                              ? 'border-orange-500 bg-orange-50/60 shadow-md ring-2 ring-orange-200'
-                              : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
-                          }`}
-                        >
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-black text-slate-900 text-sm">
-                                Table {ord.table_no}
-                              </span>
-                              <span
-                                className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase ${
-                                  ord.status === 'ready'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-amber-100 text-amber-800'
+                  <>
+                    <div className="mb-3">
+                      <input
+                        type="text"
+                        placeholder="Filter past bills (Bill #, Table, Phone)..."
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      />
+                    </div>
+
+                    {pastPaidOrders.length === 0 ? (
+                      <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
+                        <p className="text-2xl mb-1">📜</p>
+                        <p className="text-xs font-bold">No Settled Bills Recorded Yet</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                        {pastPaidOrders
+                          .filter((ord) => {
+                            if (!historySearch.trim()) return true;
+                            const q = historySearch.toLowerCase();
+                            return (
+                              ord.bill_no?.toLowerCase().includes(q) ||
+                              ord.table_no?.toLowerCase().includes(q) ||
+                              ord.customer_name?.toLowerCase().includes(q) ||
+                              ord.customer_phone?.toLowerCase().includes(q)
+                            );
+                          })
+                          .map((ord) => {
+                            const isSelected = selectedOrder?.id === ord.id;
+                            return (
+                              <div
+                                key={ord.id}
+                                onClick={() => handleSelectOrder(ord)}
+                                className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                                  isSelected
+                                    ? 'border-emerald-500 bg-emerald-50/70 shadow-md ring-2 ring-emerald-200'
+                                    : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
                                 }`}
                               >
-                                {ord.status}
-                              </span>
-                            </div>
-                            <span className="text-xs font-mono text-slate-400 font-medium">
-                              {ord.bill_no}
-                            </span>
-                          </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-black text-slate-900 text-xs">
+                                      Table {ord.table_no}
+                                    </span>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase">
+                                      {ord.payment_mode || 'PAID'}
+                                    </span>
+                                  </div>
+                                  <span className="text-[11px] font-mono text-slate-400 font-medium block">
+                                    {ord.bill_no}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">
+                                    {new Date(ord.created_at).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                    {ord.customer_name ? ` • ${ord.customer_name}` : ''}
+                                  </span>
+                                </div>
 
-                          <div className="text-right">
-                            <span className="text-sm font-black text-orange-600">
-                              ₹{Number(ord.total_amount).toFixed(2)}
-                            </span>
-                            <p className="text-[10px] text-slate-400 font-medium">
-                              {ord.order_items?.length || 0} items
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                                <div className="text-right">
+                                  <span className="text-xs font-black text-emerald-700">
+                                    Rs. {Number(ord.total_amount).toFixed(2)}
+                                  </span>
+                                  <span className="block text-[10px] text-orange-600 font-bold hover:underline">
+                                    View Receipt ↗
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -542,10 +680,10 @@ export const CashierDashboard: React.FC = () => {
                                 {item.quantity}
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-600">
-                                ₹{Number(item.unit_price).toFixed(2)}
+                                Rs. {Number(item.unit_price).toFixed(2)}
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-slate-900">
-                                ₹{Number(item.total_price).toFixed(2)}
+                                Rs. {Number(item.total_price).toFixed(2)}
                               </td>
                             </tr>
                           ))}
@@ -558,22 +696,22 @@ export const CashierDashboard: React.FC = () => {
                   <div className="bg-slate-50 p-4 rounded-2xl space-y-1.5 text-xs text-slate-600 border border-slate-100">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span className="font-semibold">₹{Number(selectedOrder.subtotal).toFixed(2)}</span>
+                      <span className="font-semibold">Rs. {Number(selectedOrder.subtotal).toFixed(2)}</span>
                     </div>
                     {selectedOrder.discount_amount > 0 && (
                       <div className="flex justify-between text-green-600 font-semibold">
                         <span>Discount:</span>
-                        <span>- ₹{Number(selectedOrder.discount_amount).toFixed(2)}</span>
+                        <span>- Rs. {Number(selectedOrder.discount_amount).toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span>GST (5%):</span>
-                      <span className="font-semibold">₹{Number(selectedOrder.tax_amount).toFixed(2)}</span>
+                      <span>Tax / Service (5%):</span>
+                      <span className="font-semibold">Rs. {Number(selectedOrder.tax_amount).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
                       <span>Total Amount:</span>
                       <span className="text-orange-600">
-                        ₹{Number(selectedOrder.total_amount).toFixed(2)}
+                        Rs. {Number(selectedOrder.total_amount).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -583,7 +721,7 @@ export const CashierDashboard: React.FC = () => {
                     {/* Amount Verification Input */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Verify / Settle Amount (₹)
+                        Verify / Settle Amount (Rs.)
                       </label>
                       <input
                         type="number"
@@ -636,7 +774,7 @@ export const CashierDashboard: React.FC = () => {
                           }`}
                         >
                           <span>📱</span>
-                          <span>UPI QR</span>
+                          <span>QR Pay</span>
                         </button>
 
                         <button
@@ -663,53 +801,53 @@ export const CashierDashboard: React.FC = () => {
                           </label>
                           <div className="relative w-36">
                             <span className="absolute left-2.5 top-2 text-xs font-bold text-emerald-700">
-                              ₹
+                              Rs.
                             </span>
                             <input
                               type="number"
                               value={cashTendered}
                               onChange={(e) => setCashTendered(e.target.value)}
                               placeholder="0.00"
-                              className="w-full pl-6 pr-2.5 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs font-black text-slate-900 text-right focus:ring-2 focus:ring-emerald-500"
+                              className="w-full pl-9 pr-2.5 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs font-black text-slate-900 text-right focus:ring-2 focus:ring-emerald-500"
                             />
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between text-xs pt-1.5 border-t border-emerald-200 font-extrabold text-emerald-950">
                           <span>Change to Return:</span>
-                          <span className="text-base text-emerald-700">₹{changeDue.toFixed(2)}</span>
+                          <span className="text-base text-emerald-700">Rs. {changeDue.toFixed(2)}</span>
                         </div>
                       </div>
                     )}
 
-                    {/* MODE 2: Dynamic UPI QR Code Scanner (High Priority Enhancement) */}
+                    {/* MODE 2: Dynamic QR Code Scanner */}
                     {paymentMode === 'upi' && (
                       <div className="p-4 rounded-3xl bg-purple-50 border-2 border-purple-200 text-purple-950 flex flex-col sm:flex-row items-center gap-4">
                         <div className="w-36 h-36 bg-white p-2 rounded-2xl shadow-md flex items-center justify-center border border-purple-200 flex-shrink-0">
                           <img
                             src={upiQrImageUrl}
-                            alt="Dynamic UPI QR Code"
+                            alt="Dynamic Payment QR Code"
                             className="w-full h-full object-contain"
                           />
                         </div>
                         <div className="space-y-1 text-center sm:text-left flex-1">
                           <span className="text-[10px] font-black uppercase tracking-wider bg-purple-200 text-purple-900 px-2.5 py-0.5 rounded-full inline-block">
-                            Dynamic UPI QR Code
+                            Digital QR Payment
                           </span>
                           <h4 className="text-lg font-black text-purple-950 mt-1">
-                            ₹{verifiedAmount.toFixed(2)}
+                            Rs. {verifiedAmount.toFixed(2)}
                           </h4>
                           <p className="text-xs text-purple-800 font-medium">
-                            Customer scans with Google Pay, PhonePe, Paytm or BHIM
+                            Customer scans with LankaQR, Banking App, or Digital Wallet
                           </p>
                           <p className="text-[11px] text-purple-600 font-mono pt-1">
-                            VPA: {restaurantVpa}
+                            Account: {restaurantVpa}
                           </p>
                         </div>
                       </div>
                     )}
 
-                    {/* MODE 3: Split Billing Controls (Medium Priority Enhancement) */}
+                    {/* MODE 3: Split Billing Controls */}
                     {paymentMode === 'split' && (
                       <div className="p-4 rounded-3xl bg-amber-50 border-2 border-amber-200 space-y-3">
                         <div className="flex items-center justify-between">
@@ -717,14 +855,14 @@ export const CashierDashboard: React.FC = () => {
                             Split Payment Allocation
                           </h5>
                           <span className="text-[11px] font-bold text-amber-800">
-                            Total: ₹{verifiedAmount.toFixed(2)}
+                            Total: Rs. {verifiedAmount.toFixed(2)}
                           </span>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 text-xs">
                           <div>
                             <label className="block text-slate-700 font-bold mb-1">
-                              💵 Cash Portion (₹)
+                              💵 Cash Portion (Rs.)
                             </label>
                             <input
                               type="number"
@@ -736,24 +874,24 @@ export const CashierDashboard: React.FC = () => {
 
                           <div>
                             <label className="block text-slate-700 font-bold mb-1">
-                              📱 Digital / UPI (₹)
+                              📱 Digital / Card (Rs.)
                             </label>
                             <div className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-purple-700">
-                              ₹{splitDigital.toFixed(2)}
+                              Rs. {splitDigital.toFixed(2)}
                             </div>
                           </div>
                         </div>
 
                         {splitDigital > 0 && (
                           <div className="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center justify-between text-xs">
-                            <span className="text-purple-800 font-semibold">UPI Link for ₹{splitDigital.toFixed(2)}</span>
+                            <span className="text-purple-800 font-semibold">Payment Link for Rs. {splitDigital.toFixed(2)}</span>
                             <a
                               href={upiIntentString}
                               target="_blank"
                               rel="noreferrer"
                               className="text-[10px] font-bold text-purple-700 underline"
                             >
-                              Show UPI Intent ↗
+                              Show Payment Intent ↗
                             </a>
                           </div>
                         )}

@@ -111,7 +111,7 @@ export const MenuAvailabilityTab: React.FC<MenuAvailabilityTabProps> = ({
                     {item.category}
                   </span>
                   <h4 className="text-sm font-bold text-gray-900 truncate">{item.name}</h4>
-                  <p className="text-xs font-extrabold text-orange-600">₹{item.price.toFixed(2)}</p>
+                  <p className="text-xs font-extrabold text-orange-600">Rs. {item.price.toFixed(2)}</p>
                 </div>
               </div>
 

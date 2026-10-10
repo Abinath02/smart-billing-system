@@ -84,8 +84,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
       if (error) throw error;
 
       onItemUpdated(data as MenuItem);
-      setBanner({ type: 'success', message: `✅ Updated price for "${item.name}" to ₹${newPrice.toFixed(2)}` });
-
+      setBanner({ type: 'success', message: `✅ Updated price for "${item.name}" to Rs. ${newPrice.toFixed(2)}` });
       setEditingPriceMap((prev) => {
         const copy = { ...prev };
         delete copy[item.id];
@@ -109,6 +108,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
     setAddingItem(true);
     try {
       const priceVal = parseFloat(newItemPrice) || 0;
+      const defaultFoodImage = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80';
       const { data, error } = await supabase
         .from('menu_items')
         .insert([
@@ -118,7 +118,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
             price: priceVal,
             preparation_time_mins: parseInt(newItemPrepTime) || 15,
             description: newItemDesc.trim() || null,
-            image_url: newItemImage.trim() || null,
+            image_url: newItemImage.trim() || defaultFoodImage,
             is_available: true,
           },
         ])
@@ -130,7 +130,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
       if (onItemAdded && data) onItemAdded(data as MenuItem);
       if (onRefresh) onRefresh();
 
-      setBanner({ type: 'success', message: `✅ Added dish "${newItemName.trim()}" at ₹${priceVal.toFixed(2)}` });
+      setBanner({ type: 'success', message: `✅ Added dish "${newItemName.trim()}" at Rs. ${priceVal.toFixed(2)}` });
       setIsAddModalOpen(false);
       setNewItemName('');
       setNewItemPrice('');
@@ -279,7 +279,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
               <th className="py-3 px-3">Category</th>
               <th className="py-3 px-3">Prep Time</th>
               <th className="py-3 px-3">Current Price</th>
-              <th className="py-3 px-4">Edit Price (₹)</th>
+              <th className="py-3 px-4">Edit Price (Rs.)</th>
               <th className="py-3 px-4 text-center">Actions</th>
             </tr>
           </thead>
@@ -328,19 +328,19 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
                   </td>
                   <td className="py-3 px-3 text-slate-500">{item.preparation_time_mins} mins</td>
                   <td className="py-3 px-3 font-black text-slate-900 text-sm">
-                    ₹{item.price.toFixed(2)}
+                    Rs. {item.price.toFixed(2)}
                   </td>
                   <td className="py-3 px-4">
-                    <div className="relative w-28">
+                    <div className="relative w-32">
                       <span className="absolute left-2.5 top-1.5 text-xs text-slate-400 font-bold">
-                        ₹
+                        Rs.
                       </span>
                       <input
                         type="number"
                         step="1"
                         value={editedValue !== undefined ? editedValue : item.price}
                         onChange={(e) => handlePriceChange(item.id, e.target.value)}
-                        className={`w-full pl-6 pr-2 py-1.5 rounded-xl border text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                        className={`w-full pl-9 pr-2 py-1.5 rounded-xl border text-xs font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                           isEdited ? 'border-amber-500 bg-amber-50/50' : 'border-slate-200 bg-slate-50'
                         }`}
                       />
@@ -424,23 +424,25 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
                     onChange={(e) => setNewItemCategory(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   >
-                    <option value="Main Course">Main Course</option>
-                    <option value="Starters">Starters</option>
-                    <option value="Breads">Breads</option>
-                    <option value="Beverages">Beverages</option>
+                    <option value="Rice & Biryani">Rice & Biryani</option>
+                    <option value="Kottu & Roti">Kottu & Roti</option>
+                    <option value="Curries & Gravies">Curries & Gravies</option>
+                    <option value="Short Eats & Starters">Short Eats & Starters</option>
+                    <option value="Breads & Naan">Breads & Naan</option>
+                    <option value="Beverages & Juices">Beverages & Juices</option>
                     <option value="Desserts">Desserts</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Price (₹ விலை)
+                    Price (Rs. / LKR விலை)
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     min="0"
-                    placeholder="250.00"
+                    placeholder="750.00"
                     value={newItemPrice}
                     onChange={(e) => setNewItemPrice(e.target.value)}
                     required

@@ -49,7 +49,7 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
 
         {/* Price */}
         <div className="mt-3">
-          <span className="text-base font-extrabold text-gray-900">₹{item.price.toFixed(2)}</span>
+          <span className="text-base font-extrabold text-gray-900">Rs. {item.price.toFixed(2)}</span>
         </div>
       </div>
 

@@ -115,8 +115,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setErrorMessage('Please enter or select your Table Number.');
       return;
     }
-    if (!form.customerPhone.trim() || form.customerPhone.replace(/\D/g, '').length < 10) {
-      setErrorMessage('Please enter a valid 10-digit phone number.');
+    const cleanDigits = form.customerPhone.replace(/\D/g, '');
+    if (!cleanDigits || cleanDigits.length < 9) {
+      setErrorMessage('Please enter a valid Sri Lankan phone number (e.g. 771234567 or 0771234567).');
       return;
     }
     if (!form.customerEmail.trim() || !form.customerEmail.includes('@')) {
@@ -128,6 +129,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
+    const formattedSriLankanPhone = cleanDigits.startsWith('94')
+      ? `+${cleanDigits}`
+      : cleanDigits.startsWith('0')
+      ? `+94${cleanDigits.slice(1)}`
+      : `+94${cleanDigits}`;
+
     try {
       setLoading(true);
 
@@ -138,7 +145,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         body: JSON.stringify({
           tableNo: cleanTable,
           customerName: form.customerName.trim() || 'Guest Customer',
-          customerPhone: form.customerPhone.trim(),
+          customerPhone: formattedSriLankanPhone,
           customerEmail: form.customerEmail.trim(),
           notes: form.notes?.trim() || null,
           appendToExisting: Boolean(existingOrder && appendToExisting),
@@ -245,7 +252,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="font-bold text-gray-900">₹{item.totalPrice.toFixed(2)}</span>
+                  <span className="font-bold text-gray-900">Rs. {item.totalPrice.toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -254,21 +261,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5 text-xs text-gray-600">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>₹{subtotal.toFixed(2)}</span>
+                <span>Rs. {subtotal.toFixed(2)}</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-600 font-semibold">
                   <span>Discount Applied</span>
-                  <span>- ₹{discount.toFixed(2)}</span>
+                  <span>- Rs. {discount.toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between">
-                <span>GST (5%)</span>
-                <span>₹{taxAmount.toFixed(2)}</span>
+                <span>GST / Service (5%)</span>
+                <span>Rs. {taxAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm font-extrabold text-gray-900 pt-1.5 border-t border-dashed border-gray-300">
                 <span>Estimated Payable</span>
-                <span className="text-orange-600">₹{finalTotal.toFixed(2)}</span>
+                <span className="text-orange-600">Rs. {finalTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -324,7 +331,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <input
                   type="text"
                   name="customerName"
-                  placeholder="e.g. Arun"
+                  placeholder="e.g. Dinesh"
                   value={form.customerName}
                   onChange={handleInputChange}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
@@ -332,26 +339,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Phone Number */}
+            {/* Sri Lanka Phone Number */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
                 Phone Number (WhatsApp Bill) <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-2.5 text-xs text-gray-500 font-semibold">
-                  +91
+              <div className="relative flex items-center">
+                <span className="absolute left-3.5 top-2.5 text-xs text-gray-700 font-black flex items-center gap-1">
+                  <span>🇱🇰</span> +94
                 </span>
                 <input
                   type="tel"
                   name="customerPhone"
-                  placeholder="9876543210"
-                  maxLength={10}
+                  placeholder="77 123 4567"
+                  maxLength={12}
                   value={form.customerPhone}
                   onChange={handleInputChange}
                   required
-                  className="w-full pl-12 pr-3.5 py-2.5 rounded-xl border border-gray-300 text-sm tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full pl-16 pr-3.5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500"
                 />
               </div>
+              <span className="text-[10px] text-gray-500 mt-1 block">
+                Enter Sri Lankan mobile number (e.g. 771234567 or 0771234567)
+              </span>
             </div>
 
             {/* Email Address */}
@@ -378,7 +388,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <textarea
                 name="notes"
                 rows={2}
-                placeholder="e.g. Less spicy, extra onions"
+                placeholder="e.g. Less spicy, extra sauce"
                 value={form.notes}
                 onChange={handleInputChange}
                 className="w-full px-3.5 py-2 rounded-xl border border-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
@@ -393,7 +403,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <span className="text-[11px] text-gray-500 uppercase font-semibold">
               {existingOrder && appendToExisting ? 'Round Total' : 'Total Amount'}
             </span>
-            <span className="text-xl font-extrabold text-gray-900">₹{finalTotal.toFixed(2)}</span>
+            <span className="text-xl font-extrabold text-gray-900">Rs. {finalTotal.toFixed(2)}</span>
           </div>
 
           <button

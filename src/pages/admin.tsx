@@ -9,6 +9,7 @@ import { AnalyticsCharts } from '../components/Admin/AnalyticsCharts';
 import { AdminLogin } from '../components/Admin/AdminLogin';
 import { StaffManagement } from '../components/Admin/StaffManagement';
 import { AdminInventoryManagement } from '../components/Admin/AdminInventoryManagement';
+import { TableManagementTab } from '../components/Admin/TableManagementTab';
 
 type AdminTab = 'overview' | 'menu' | 'inventory' | 'users' | 'offers' | 'history' | 'qrcodes';
 
@@ -529,7 +530,7 @@ export const AdminDashboard: React.FC = () => {
                                   {o.customer_name || 'Guest'}
                                 </td>
                                 <td className="py-2.5 px-3 font-extrabold text-slate-900">
-                                  ₹{Number(o.total_amount).toFixed(2)}
+                                  Rs. {Number(o.total_amount).toFixed(2)}
                                 </td>
                                 <td className="py-2.5 px-3">
                                   <span
@@ -657,19 +658,19 @@ export const AdminDashboard: React.FC = () => {
                                   </div>
                                 </td>
                                 <td className="py-3 px-3 text-slate-600">
-                                  ₹{Number(o.subtotal).toFixed(2)}
+                                  Rs. {Number(o.subtotal).toFixed(2)}
                                 </td>
                                 <td className="py-3 px-3 text-slate-600 font-mono">
-                                  ₹{halfTax}
+                                  Rs. {halfTax}
                                 </td>
                                 <td className="py-3 px-3 text-slate-600 font-mono">
-                                  ₹{halfTax}
+                                  Rs. {halfTax}
                                 </td>
                                 <td className="py-3 px-3 text-slate-600">
-                                  ₹{Number(o.tax_amount).toFixed(2)}
+                                  Rs. {Number(o.tax_amount).toFixed(2)}
                                 </td>
                                 <td className="py-3 px-3 font-extrabold text-slate-900">
-                                  ₹{Number(o.total_amount).toFixed(2)}
+                                  Rs. {Number(o.total_amount).toFixed(2)}
                                 </td>
                                 <td className="py-3 px-3">
                                   <span
@@ -696,83 +697,8 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 )}
 
-                {/* TAB 5: TABLE QR CODES GENERATOR WITH VISUAL PRINTABLE QR CARDS */}
-                {activeTab === 'qrcodes' && (
-                  <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-6">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b pb-4 border-slate-100">
-                      <div>
-                        <h3 className="text-base font-black text-slate-900">
-                          Dine-In Table QR Code Tent Cards
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          Print these QR cards and place them on dining tables. Customers scan with their phone camera to instantly view the menu and place orders.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => window.print()}
-                        className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow"
-                      >
-                        <span>🖨️</span>
-                        <span>Print All Table Cards</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                      {standardTables.map((tbl) => {
-                        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spicegarden.com';
-                        const tableUrl = `${origin}/?table=${tbl}`;
-                        const qrCodeImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&margin=2&data=${encodeURIComponent(tableUrl)}`;
-
-                        return (
-                          <div
-                            key={tbl}
-                            className="p-5 rounded-3xl border-2 border-slate-200 bg-white flex flex-col items-center text-center shadow-sm hover:border-orange-500 transition group"
-                          >
-                            <span className="text-[10px] font-black uppercase tracking-widest text-orange-600">
-                              SPICE GARDEN
-                            </span>
-                            <h4 className="text-lg font-black text-slate-900 mt-0.5">Table {tbl}</h4>
-
-                            {/* Scannable Visual QR Code Image */}
-                            <div className="w-36 h-36 bg-slate-50 p-2.5 rounded-2xl border border-slate-200 shadow-inner flex items-center justify-center my-3 group-hover:scale-105 transition-transform">
-                              <img
-                                src={qrCodeImgUrl}
-                                alt={`QR Code for Table ${tbl}`}
-                                className="w-full h-full object-contain"
-                                loading="lazy"
-                              />
-                            </div>
-
-                            <p className="text-[11px] font-bold text-slate-600">
-                              Scan to View Menu & Order
-                            </p>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full mt-1 font-semibold">
-                              🔒 Auto-Locked Table
-                            </span>
-
-                            <div className="mt-4 flex gap-2 w-full pt-2 border-t border-slate-100">
-                              <button
-                                onClick={() => copyTableLink(tbl)}
-                                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
-                              >
-                                {copiedTable === tbl ? '✓ Copied' : 'Copy URL'}
-                              </button>
-                              <a
-                                href={`/?table=${tbl}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="py-1.5 px-3 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl transition"
-                                title="Open customer view"
-                              >
-                                Open ↗
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                {/* TAB 5: TABLE MANAGEMENT & DYNAMIC QR CARDS */}
+                {activeTab === 'qrcodes' && <TableManagementTab />}
               </>
             )}
           </main>

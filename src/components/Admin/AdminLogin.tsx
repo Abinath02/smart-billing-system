@@ -10,9 +10,6 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [adminSecretCode, setAdminSecretCode] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -21,107 +18,56 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        // Enforce Admin registration passcode for security (trimmed and case-insensitive)
-        const cleanPasscode = (adminSecretCode || '').trim().toUpperCase();
-        if (cleanPasscode !== 'ADMIN2026' && cleanPasscode !== 'SPICE_ADMIN') {
-          throw new Error('Invalid Admin Secret Passcode. Please enter ADMIN2026 in uppercase without spaces.');
-        }
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
 
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
-          password: password,
-          options: {
-            data: {
-              full_name: fullName.trim() || 'Restaurant Manager',
-              role: 'admin',
-            },
-          },
-        });
+      if (signInErr) throw signInErr;
 
-        if (signUpErr) throw signUpErr;
+      if (signInData.user) {
+        let { data: profile, error: profileErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', signInData.user.id)
+          .single();
 
-        if (signUpData.user) {
-          // Explicitly upsert admin profile to ensure immediate access
-          await supabase.from('profiles').upsert({
-            id: signUpData.user.id,
-            email: email.trim().toLowerCase(),
-            full_name: fullName.trim() || 'Restaurant Manager',
-            role: 'admin',
-            is_active: true,
-            updated_at: new Date().toISOString(),
-          });
-
-          const { data: profileData } = await supabase
+        if (!profile && signInData.user.email) {
+          const { data: profileByEmail } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', signUpData.user.id)
+            .eq('email', signInData.user.email.toLowerCase())
             .single();
+          if (profileByEmail) {
+            profile = profileByEmail;
+            profileErr = null;
+          }
+        }
 
-          onLoginSuccess(
-            profileData || {
-              id: signUpData.user.id,
-              email: signUpData.user.email!,
-              full_name: fullName.trim(),
-              role: 'admin',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }
+        if (profileErr || !profile) {
+          console.error('Admin profile lookup failed:', profileErr);
+          await supabase.auth.signOut();
+          throw new Error(
+            profileErr?.message ||
+            'No administrator profile found in database. Administrator privileges required.'
           );
         }
-      } else {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password,
-        });
 
-        if (signInErr) throw signInErr;
-
-        if (signInData.user) {
-          let { data: profile, error: profileErr } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', signInData.user.id)
-            .single();
-
-          if (!profile && signInData.user.email) {
-            const { data: profileByEmail } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('email', signInData.user.email.toLowerCase())
-              .single();
-            if (profileByEmail) {
-              profile = profileByEmail;
-              profileErr = null;
-            }
-          }
-
-          if (profileErr || !profile) {
-            console.error('Admin profile lookup failed:', profileErr);
-            await supabase.auth.signOut();
-            throw new Error(
-              profileErr?.message ||
-              'No administrator profile found in database. Administrator privileges required.'
-            );
-          }
-
-          if (profile.role !== 'admin') {
-            await supabase.auth.signOut();
-            throw new Error(`Access denied. Found role "${profile.role}", but Administrator role is required.`);
-          }
-
-          if (profile.is_active === false) {
-            await supabase.auth.signOut();
-            throw new Error('Administrator account is currently inactive.');
-          }
-
-          onLoginSuccess(profile as Profile);
+        if (profile.role !== 'admin') {
+          await supabase.auth.signOut();
+          throw new Error(`Access denied. Found role "${profile.role}", but Administrator role is required.`);
         }
+
+        if (profile.is_active === false) {
+          await supabase.auth.signOut();
+          throw new Error('Administrator account is currently inactive.');
+        }
+
+        onLoginSuccess(profile as Profile);
       }
     } catch (err: any) {
       console.error('Admin authentication error:', err);
-      setError(err.message || 'Authentication failed.');
+      setError(err.message || 'Authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -138,7 +84,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
             Admin Management Portal
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            {isSignUp ? 'Register Restaurant Administrator' : 'Authorized Executive Access Only'}
+            Authorized Executive Access Only
           </p>
         </div>
 
@@ -150,46 +96,13 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {isSignUp && (
-            <>
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Administrator Full Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ramesh Owner"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required={isSignUp}
-                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Master Security Passcode
-                </label>
-                <input
-                  type="password"
-                  placeholder="Enter ADMIN2026"
-                  value={adminSecretCode}
-                  onChange={(e) => setAdminSecretCode(e.target.value)}
-                  required={isSignUp}
-                  className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-                <span className="text-[10px] text-slate-500 mt-0.5 block">Passcode is ADMIN2026</span>
-              </div>
-            </>
-          )}
-
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
               Admin Email
             </label>
             <input
               type="email"
-              placeholder="admin@spicegarden.com"
+              placeholder="admin@smartbilling.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -216,23 +129,14 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
           >
-            {loading ? 'Verifying...' : isSignUp ? 'Create Admin Account' : 'Unlock Admin Portal ➔'}
+            {loading ? 'Verifying...' : 'Unlock Admin Portal ➔'}
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-slate-800 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError(null);
-            }}
-            className="text-xs text-amber-400 hover:text-amber-300 font-semibold"
-          >
-            {isSignUp
-              ? 'Already registered? Sign in here'
-              : 'Need new administrator access? Register here'}
-          </button>
+        <div className="mt-6 pt-4 border-t border-slate-800/80 text-center">
+          <p className="text-[11px] text-slate-500">
+            🔒 Protected System: Staff accounts must be provisioned by Master Admin.
+          </p>
         </div>
       </div>
     </div>

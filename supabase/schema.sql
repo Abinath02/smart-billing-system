@@ -190,20 +190,19 @@ ALTER TABLE public.offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 
--- Menu Items & Offers: readable by all (staff & customers for QR menu ordering)
-CREATE POLICY "Public can view available menu items" ON public.menu_items
-    FOR SELECT USING (true);
+-- Menu Items Policies
+DROP POLICY IF EXISTS "Public can view available menu items" ON public.menu_items;
+DROP POLICY IF EXISTS "Staff can update menu items" ON public.menu_items;
+DROP POLICY IF EXISTS "Admins can manage menu items" ON public.menu_items;
+DROP POLICY IF EXISTS "Allow select menu_items" ON public.menu_items;
+DROP POLICY IF EXISTS "Allow insert menu_items" ON public.menu_items;
+DROP POLICY IF EXISTS "Allow update menu_items" ON public.menu_items;
+DROP POLICY IF EXISTS "Allow delete menu_items" ON public.menu_items;
 
-CREATE POLICY "Staff can update menu items" ON public.menu_items
-    FOR UPDATE USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Admins can manage menu items" ON public.menu_items
-    FOR ALL USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-        )
-    );
+CREATE POLICY "Allow select menu_items" ON public.menu_items FOR SELECT USING (true);
+CREATE POLICY "Allow insert menu_items" ON public.menu_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update menu_items" ON public.menu_items FOR UPDATE USING (true);
+CREATE POLICY "Allow delete menu_items" ON public.menu_items FOR DELETE USING (true);
 
 CREATE POLICY "Public can view active offers" ON public.offers
     FOR SELECT USING (is_active = true);
