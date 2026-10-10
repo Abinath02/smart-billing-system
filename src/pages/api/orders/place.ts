@@ -1,5 +1,19 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from '../../../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+import { supabase as defaultSupabase } from '../../../lib/supabaseClient';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Initialize server database client: uses service role key if available to bypass RLS securely on server
+const getServerSupabase = () => {
+  if (serviceRoleKey && supabaseUrl) {
+    return createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+  return defaultSupabase;
+};
 
 export interface PlaceOrderRequestBody {
   tableNo: string;
@@ -43,6 +57,8 @@ export default async function handler(
     return res.status(400).json({ success: false, error: 'Cart must contain at least one item.' });
   }
 
+  const db = getServerSupabase();
+
   try {
     // Attempt 1: Call secure database RPC if available
     const rpcPayload = {
@@ -60,7 +76,7 @@ export default async function handler(
       p_append_to_existing: Boolean(appendToExisting),
     };
 
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
+    const { data: rpcData, error: rpcError } = await db.rpc(
       'place_or_append_order',
       rpcPayload
     );
@@ -75,10 +91,14 @@ export default async function handler(
       });
     }
 
+    if (rpcError) {
+      console.warn('place_or_append_order RPC notice, using direct flow:', rpcError.message);
+    }
+
     // Attempt 2: Server-side secure fallback verification
     // Fetch real dishes from database
     const itemIds = cartItems.map((c) => c.itemId);
-    const { data: dbDishes, error: dishesErr } = await supabase
+    const { data: dbDishes, error: dishesErr } = await db
       .from('menu_items')
       .select('*')
       .in('id', itemIds);
@@ -88,7 +108,7 @@ export default async function handler(
     }
 
     // Fetch active offers
-    const { data: dbOffers } = await supabase
+    const { data: dbOffers } = await db
       .from('offers')
       .select('*')
       .eq('is_active', true);
@@ -159,7 +179,7 @@ export default async function handler(
     let activeOrderData: any = null;
 
     if (appendToExisting) {
-      const { data: openOrders } = await supabase
+      const { data: openOrders } = await db
         .from('orders')
         .select('*')
         .eq('table_no', normalizedTable)
@@ -181,7 +201,7 @@ export default async function handler(
       const newTotal = Number((newSubtotal - newDiscount + newTax).toFixed(2));
 
       // 1. Update order header
-      const { data: updatedOrder, error: updateErr } = await supabase
+      const { data: updatedOrder, error: updateErr } = await db
         .from('orders')
         .update({
           subtotal: newSubtotal,
@@ -206,16 +226,16 @@ export default async function handler(
           : '[Round 2 Add-on]',
       }));
 
-      const { error: itemsInsertErr } = await supabase
+      const { error: itemsInsertErr } = await db
         .from('order_items')
         .insert(itemsPayload);
 
       if (itemsInsertErr) throw itemsInsertErr;
 
       // 3. Fetch fresh joined order
-      const { data: fullOrder } = await supabase
+      const { data: fullOrder } = await db
         .from('orders')
-        .select('*, order_items(*), waiter:waiters(*)')
+        .select('*, order_items(*)')
         .eq('id', existingOrderId)
         .single();
 
@@ -229,7 +249,7 @@ export default async function handler(
       const timestampSuffix = Math.floor(1000 + Math.random() * 9000);
       const generatedBillNo = `BILL-${Date.now().toString().slice(-4)}${timestampSuffix}`;
 
-      const { data: newOrder, error: orderErr } = await supabase
+      const { data: newOrder, error: orderErr } = await db
         .from('orders')
         .insert([
           {
@@ -257,15 +277,15 @@ export default async function handler(
         order_id: newOrder.id,
       }));
 
-      const { error: itemsInsertErr } = await supabase
+      const { error: itemsInsertErr } = await db
         .from('order_items')
         .insert(itemsPayload);
 
       if (itemsInsertErr) throw itemsInsertErr;
 
-      const { data: fullOrder } = await supabase
+      const { data: fullOrder } = await db
         .from('orders')
-        .select('*, order_items(*), waiter:waiters(*)')
+        .select('*, order_items(*)')
         .eq('id', newOrder.id)
         .single();
 

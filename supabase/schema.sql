@@ -218,32 +218,52 @@ CREATE POLICY "Staff can view waiters" ON public.waiters
 CREATE POLICY "Staff can manage waiters" ON public.waiters
     FOR ALL USING (auth.role() = 'authenticated');
 
--- Orders & Order Items: readable and writable by authenticated staff
-CREATE POLICY "Staff can view all orders" ON public.orders
-    FOR SELECT USING (auth.role() = 'authenticated');
+-- Orders & Order Items: Fully permissive for QR ordering and staff operations
+DROP POLICY IF EXISTS "Staff can view all orders" ON public.orders;
+DROP POLICY IF EXISTS "Staff can insert/update orders" ON public.orders;
+DROP POLICY IF EXISTS "Customers can insert orders" ON public.orders;
+DROP POLICY IF EXISTS "Customers can view their placed orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow select orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow insert orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow update orders" ON public.orders;
+DROP POLICY IF EXISTS "Allow delete orders" ON public.orders;
 
-CREATE POLICY "Staff can insert/update orders" ON public.orders
-    FOR ALL USING (auth.role() = 'authenticated');
-
--- Public / Anonymous QR Customer can place orders
-CREATE POLICY "Customers can insert orders" ON public.orders
-    FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Customers can view their placed orders" ON public.orders
+CREATE POLICY "Allow select orders" ON public.orders
     FOR SELECT USING (true);
 
-CREATE POLICY "Staff can view order items" ON public.order_items
-    FOR SELECT USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Staff can insert/update order items" ON public.order_items
-    FOR ALL USING (auth.role() = 'authenticated');
-
--- Public / Anonymous QR Customer can insert their order items
-CREATE POLICY "Customers can insert order items" ON public.order_items
+CREATE POLICY "Allow insert orders" ON public.orders
     FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Customers can view order items" ON public.order_items
+CREATE POLICY "Allow update orders" ON public.orders
+    FOR UPDATE USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow delete orders" ON public.orders
+    FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Order Items Policies
+DROP POLICY IF EXISTS "Staff can view order items" ON public.order_items;
+DROP POLICY IF EXISTS "Staff can insert/update order items" ON public.order_items;
+DROP POLICY IF EXISTS "Customers can insert order items" ON public.order_items;
+DROP POLICY IF EXISTS "Customers can view order items" ON public.order_items;
+DROP POLICY IF EXISTS "Allow select order_items" ON public.order_items;
+DROP POLICY IF EXISTS "Allow insert order_items" ON public.order_items;
+DROP POLICY IF EXISTS "Allow update order_items" ON public.order_items;
+DROP POLICY IF EXISTS "Allow delete order_items" ON public.order_items;
+
+CREATE POLICY "Allow select order_items" ON public.order_items
     FOR SELECT USING (true);
+
+CREATE POLICY "Allow insert order_items" ON public.order_items
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow update order_items" ON public.order_items
+    FOR UPDATE USING (true) WITH CHECK (true);
+
+CREATE POLICY "Allow delete order_items" ON public.order_items
+    FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Grant execute permissions for functions to anon and authenticated
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
 -- Profiles: Allow reading profiles without infinite recursion
 DROP POLICY IF EXISTS "Admins can view and manage all profiles" ON public.profiles;
