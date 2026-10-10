@@ -75,22 +75,18 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
             .single();
 
           if (profileErr || !profile) {
-            // Default admin profile if record is populating
-            onLoginSuccess({
-              id: signInData.user.id,
-              email: signInData.user.email!,
-              full_name: 'Restaurant Administrator',
-              role: 'admin',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-            return;
+            await supabase.auth.signOut();
+            throw new Error('No administrator profile found. Administrator privileges required.');
           }
 
           if (profile.role !== 'admin') {
             await supabase.auth.signOut();
             throw new Error('Access denied. Administrator privileges required to enter portal.');
+          }
+
+          if (!profile.is_active) {
+            await supabase.auth.signOut();
+            throw new Error('Administrator account is currently inactive.');
           }
 
           onLoginSuccess(profile as Profile);

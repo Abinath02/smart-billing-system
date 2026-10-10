@@ -51,24 +51,17 @@ export const CashierDashboard: React.FC = () => {
             .eq('id', session.user.id)
             .single();
 
-          if (profile && (profile.role === 'cashier' || profile.role === 'admin')) {
+          if (profile && (profile.role === 'cashier' || profile.role === 'admin') && profile.is_active) {
             setCurrentUser(profile as Profile);
-          } else if (profile) {
-            setCurrentUser(null);
           } else {
-            setCurrentUser({
-              id: session.user.id,
-              email: session.user.email!,
-              full_name: 'Cashier Staff',
-              role: 'cashier',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
+            setCurrentUser(null);
           }
+        } else {
+          setCurrentUser(null);
         }
       } catch (err) {
         console.error('Cashier auth check failed:', err);
+        setCurrentUser(null);
       } finally {
         setAuthChecking(false);
       }

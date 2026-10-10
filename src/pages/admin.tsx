@@ -7,8 +7,10 @@ import { MenuPriceManagement } from '../components/Admin/MenuPriceManagement';
 import { OffersManagement } from '../components/Admin/OffersManagement';
 import { AnalyticsCharts } from '../components/Admin/AnalyticsCharts';
 import { AdminLogin } from '../components/Admin/AdminLogin';
+import { StaffManagement } from '../components/Admin/StaffManagement';
+import { AdminInventoryManagement } from '../components/Admin/AdminInventoryManagement';
 
-type AdminTab = 'overview' | 'menu' | 'offers' | 'history' | 'qrcodes';
+type AdminTab = 'overview' | 'menu' | 'inventory' | 'users' | 'offers' | 'history' | 'qrcodes';
 
 export const AdminDashboard: React.FC = () => {
   // Auth state
@@ -25,7 +27,7 @@ export const AdminDashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copiedTable, setCopiedTable] = useState<string | null>(null);
 
-  // 1. Auth Guard Check
+  // 1. Strict Auth Guard Check
   useEffect(() => {
     const checkAuth = async () => {
       setAuthChecking(true);
@@ -41,24 +43,17 @@ export const AdminDashboard: React.FC = () => {
             .eq('id', session.user.id)
             .single();
 
-          if (profile && profile.role === 'admin') {
+          if (profile && profile.role === 'admin' && profile.is_active) {
             setCurrentUser(profile as Profile);
-          } else if (profile) {
-            setCurrentUser(null);
           } else {
-            setCurrentUser({
-              id: session.user.id,
-              email: session.user.email!,
-              full_name: 'Administrator',
-              role: 'admin',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
+            setCurrentUser(null);
           }
+        } else {
+          setCurrentUser(null);
         }
       } catch (err) {
         console.error('Admin auth check failed:', err);
+        setCurrentUser(null);
       } finally {
         setAuthChecking(false);
       }
@@ -66,6 +61,7 @@ export const AdminDashboard: React.FC = () => {
 
     checkAuth();
   }, []);
+
 
   // 2. Fetch All Admin Data
   const fetchAllData = useCallback(async () => {
@@ -288,6 +284,36 @@ export const AdminDashboard: React.FC = () => {
               >
                 <span className="text-base">🍲</span>
                 <span>Menu & Pricing</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('inventory');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition ${
+                  activeTab === 'inventory'
+                    ? 'bg-orange-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <span className="text-base">📦</span>
+                <span>Raw Materials & Store</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('users');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition ${
+                  activeTab === 'users'
+                    ? 'bg-orange-600 text-white shadow-md'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <span className="text-base">👥</span>
+                <span>Staff & User Accounts</span>
               </button>
 
               <button
@@ -531,8 +557,18 @@ export const AdminDashboard: React.FC = () => {
                       )
                     }
                     onItemAdded={(newItem) => setMenuItems((prev) => [newItem, ...prev])}
+                    onItemDeleted={(deletedId) =>
+                      setMenuItems((prev) => prev.filter((item) => item.id !== deletedId))
+                    }
+                    onRefresh={fetchAllData}
                   />
                 )}
+
+                {/* TAB: RAW MATERIALS & STORE INVENTORY */}
+                {activeTab === 'inventory' && <AdminInventoryManagement />}
+
+                {/* TAB: STAFF & USERS MANAGEMENT */}
+                {activeTab === 'users' && <StaffManagement />}
 
                 {/* TAB 3: OFFERS & PROMOTIONS */}
                 {activeTab === 'offers' && (

@@ -10,8 +10,6 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -20,75 +18,41 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password,
-          options: {
-            data: {
-              full_name: fullName.trim() || 'Billing Cashier',
-              role: 'cashier',
-            },
-          },
-        });
+      // 1. Authenticate with Supabase
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password,
+      });
 
-        if (signUpErr) throw signUpErr;
+      if (signInErr) throw signInErr;
 
-        if (signUpData.user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', signUpData.user.id)
-            .single();
-
-          onLoginSuccess(
-            profileData || {
-              id: signUpData.user.id,
-              email: signUpData.user.email!,
-              full_name: fullName,
-              role: 'cashier',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }
-          );
-        }
-      } else {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password,
-        });
-
-        if (signInErr) throw signInErr;
-
-        if (signInData.user) {
-          const { data: profile, error: profileErr } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', signInData.user.id)
-            .single();
-
-          if (profileErr || !profile) {
-            onLoginSuccess({
-              id: signInData.user.id,
-              email: signInData.user.email!,
-              full_name: 'Billing Cashier',
-              role: 'cashier',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-            return;
-          }
-
-          if (profile.role !== 'cashier' && profile.role !== 'admin') {
-            await supabase.auth.signOut();
-            throw new Error('Access denied. Only Cashier and Admin staff can access POS billing.');
-          }
-
-          onLoginSuccess(profile as Profile);
-        }
+      if (!signInData.user) {
+        throw new Error('Authentication failed. No user record returned.');
       }
+
+      // 2. Strict Role Verification from profiles table
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', signInData.user.id)
+        .single();
+
+      if (profileErr || !profile) {
+        await supabase.auth.signOut();
+        throw new Error('No staff profile found. Only accounts registered by the Restaurant Admin can access POS.');
+      }
+
+      if (!profile.is_active) {
+        await supabase.auth.signOut();
+        throw new Error('Your cashier account is currently inactive. Please contact Admin.');
+      }
+
+      if (profile.role !== 'cashier' && profile.role !== 'admin') {
+        await supabase.auth.signOut();
+        throw new Error('Access denied. Only Cashier and Admin staff can access POS billing.');
+      }
+
+      onLoginSuccess(profile as Profile);
     } catch (err: any) {
       console.error('Cashier auth error:', err);
       setError(err.message || 'Authentication failed.');
@@ -108,7 +72,7 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
             Cashier POS Counter
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            {isSignUp ? 'Register Cashier Staff Account' : 'Authorized Cashier Sign-in Required'}
+            Authorized Cashier Sign-in Required
           </p>
         </div>
 
@@ -120,22 +84,6 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {isSignUp && (
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Cashier Full Name
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Priya Billing"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required={isSignUp}
-                className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-          )}
-
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
               Cashier Staff Email
@@ -169,23 +117,14 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
           >
-            {loading ? 'Authenticating...' : isSignUp ? 'Create Cashier Account' : 'Open Cashier Till ➔'}
+            {loading ? 'Authenticating...' : 'Open Cashier Till ➔'}
           </button>
         </form>
 
         <div className="mt-5 pt-4 border-t border-slate-800 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError(null);
-            }}
-            className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold"
-          >
-            {isSignUp
-              ? 'Already registered? Sign In'
-              : 'Need a new cashier login? Register here'}
-          </button>
+          <p className="text-[11px] text-slate-400">
+            🔒 <strong>Notice:</strong> Staff accounts are strictly provisioned by the <span className="text-amber-400 font-semibold">Restaurant Administrator</span>. Contact Admin for POS login credentials.
+          </p>
         </div>
       </div>
     </div>

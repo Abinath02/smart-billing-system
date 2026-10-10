@@ -84,3 +84,30 @@ export interface OrderItem {
   special_instructions?: string | null;
   created_at: string;
 }
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  min_threshold: number;
+  cost_per_unit?: number;
+  last_restocked_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryLog {
+  id: string;
+  item_id: string;
+  action_type: 'used' | 'restocked' | 'adjusted';
+  quantity: number;
+  previous_quantity: number;
+  new_quantity: number;
+  staff_name: string;
+  notes?: string | null;
+  created_at: string;
+  item?: InventoryItem;
+}
+

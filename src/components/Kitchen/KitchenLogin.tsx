@@ -10,8 +10,6 @@ export const KitchenLogin: React.FC<KitchenLoginProps> = ({ onLoginSuccess }) =>
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -20,80 +18,42 @@ export const KitchenLogin: React.FC<KitchenLoginProps> = ({ onLoginSuccess }) =>
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        // Register Kitchen Staff
-        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: password,
-          options: {
-            data: {
-              full_name: fullName.trim() || 'Kitchen Chef',
-              role: 'kitchen',
-            },
-          },
-        });
+      // 1. Authenticate with Supabase
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password,
+      });
 
-        if (signUpErr) throw signUpErr;
+      if (signInErr) throw signInErr;
 
-        if (signUpData.user) {
-          // Verify or fetch profile
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', signUpData.user.id)
-            .single();
-
-          onLoginSuccess(
-            profileData || {
-              id: signUpData.user.id,
-              email: signUpData.user.email!,
-              full_name: fullName,
-              role: 'kitchen',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }
-          );
-        }
-      } else {
-        // Sign In
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: password,
-        });
-
-        if (signInErr) throw signInErr;
-
-        if (signInData.user) {
-          // Check role from profiles
-          const { data: profile, error: profileErr } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', signInData.user.id)
-            .single();
-
-          if (profileErr || !profile) {
-            // Fallback profile if record is populating
-            onLoginSuccess({
-              id: signInData.user.id,
-              email: signInData.user.email!,
-              full_name: 'Kitchen Chef',
-              role: 'kitchen',
-              is_active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-            return;
-          }
-
-          if (profile.role !== 'kitchen' && profile.role !== 'admin') {
-            await supabase.auth.signOut();
-            throw new Error('Access denied. Only Kitchen Staff and Admins are permitted.');
-          }
-
-          onLoginSuccess(profile as Profile);
-        }
+      if (!signInData.user) {
+        throw new Error('Authentication failed. No user record returned.');
       }
+
+      // 2. Strict Role Verification from profiles table
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', signInData.user.id)
+        .single();
+
+      if (profileErr || !profile) {
+        // Sign out immediately if unauthorized
+        await supabase.auth.signOut();
+        throw new Error('No staff profile found for this account. Only registered staff created by Admin can sign in.');
+      }
+
+      if (!profile.is_active) {
+        await supabase.auth.signOut();
+        throw new Error('Your staff account is currently inactive. Contact Admin to re-activate.');
+      }
+
+      if (profile.role !== 'kitchen' && profile.role !== 'admin') {
+        await supabase.auth.signOut();
+        throw new Error('Access denied. Kitchen Staff or Admin credentials required.');
+      }
+
+      onLoginSuccess(profile as Profile);
     } catch (err: any) {
       console.error('Kitchen auth error:', err);
       setError(err.message || 'Authentication failed.');
@@ -113,36 +73,21 @@ export const KitchenLogin: React.FC<KitchenLoginProps> = ({ onLoginSuccess }) =>
             Kitchen Display System (KDS)
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            {isSignUp ? 'Register Kitchen Staff Account' : 'Authorized Kitchen Staff Sign-in'}
+            Authorized Kitchen Staff Sign-in
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-950/60 border border-red-800/80 text-red-300 text-xs font-semibold rounded-xl">
-            ⚠️ {error}
+          <div className="mb-4 p-3 bg-red-950/60 border border-red-800/80 text-red-300 text-xs font-semibold rounded-xl flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {isSignUp && (
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Chef Name
-              </label>
-              <input
-                type="text"
-                placeholder="Chef Ramesh"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required={isSignUp}
-                className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-            </div>
-          )}
-
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Kitchen Email
+              Kitchen Staff Email
             </label>
             <input
               type="email"
@@ -173,23 +118,14 @@ export const KitchenLogin: React.FC<KitchenLoginProps> = ({ onLoginSuccess }) =>
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
           >
-            {loading ? 'Authenticating...' : isSignUp ? 'Create Kitchen Account' : 'Enter Kitchen Dashboard ➔'}
+            {loading ? 'Authenticating...' : 'Enter Kitchen Dashboard ➔'}
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-slate-800 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError(null);
-            }}
-            className="text-xs text-orange-400 hover:text-orange-300 font-semibold"
-          >
-            {isSignUp
-              ? 'Already have an account? Sign In'
-              : 'Need a new kitchen staff login? Register here'}
-          </button>
+        <div className="mt-5 pt-4 border-t border-slate-800/80 text-center">
+          <p className="text-[11px] text-slate-400">
+            🔒 <strong>Notice:</strong> Accounts can only be created by the <span className="text-amber-400 font-semibold">Restaurant Administrator</span>. Contact Admin if you need credentials.
+          </p>
         </div>
       </div>
     </div>

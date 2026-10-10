@@ -484,3 +484,89 @@ BEGIN
 END;
 $$;
 
+-- ====================================================================
+-- 12. INVENTORY & RAW MATERIALS (STORE MANAGEMENT)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.inventory_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'General', -- e.g. 'Grains & Staples', 'Bakery', 'Seasoning', 'Meat & Poultry', 'Dairy', 'Oils'
+    quantity NUMERIC(10, 2) NOT NULL DEFAULT 0.00 CHECK (quantity >= 0),
+    unit TEXT NOT NULL DEFAULT 'kg', -- 'kg', 'pcs', 'liters', 'packets', 'grams'
+    min_threshold NUMERIC(10, 2) NOT NULL DEFAULT 5.00 CHECK (min_threshold >= 0),
+    cost_per_unit NUMERIC(10, 2) DEFAULT 0.00 CHECK (cost_per_unit >= 0),
+    last_restocked_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
+    created_at TIMESTAMPTZ DEFAULT timezone('utc', now()) NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT timezone('utc', now()) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    item_id UUID NOT NULL REFERENCES public.inventory_items(id) ON DELETE CASCADE,
+    action_type TEXT NOT NULL CHECK (action_type IN ('used', 'restocked', 'adjusted')),
+    quantity NUMERIC(10, 2) NOT NULL,
+    previous_quantity NUMERIC(10, 2) NOT NULL,
+    new_quantity NUMERIC(10, 2) NOT NULL,
+    staff_name TEXT NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc', now()) NOT NULL
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_inventory_items_name ON public.inventory_items(name);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_category ON public.inventory_items(category);
+CREATE INDEX IF NOT EXISTS idx_inventory_logs_item_id ON public.inventory_logs(item_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_logs_created_at ON public.inventory_logs(created_at DESC);
+
+-- Updated_at Trigger
+CREATE OR REPLACE TRIGGER trg_inventory_items_updated_at
+    BEFORE UPDATE ON public.inventory_items
+    FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- RLS Policies
+ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated staff can view inventory" ON public.inventory_items
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated staff can update inventory" ON public.inventory_items
+    FOR UPDATE USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated staff can insert inventory items" ON public.inventory_items
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can delete inventory items" ON public.inventory_items
+    FOR DELETE USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+        )
+    );
+
+CREATE POLICY "Authenticated staff can view inventory logs" ON public.inventory_logs
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Authenticated staff can insert inventory logs" ON public.inventory_logs
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Realtime Publication for live inventory counters
+ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory_items;
+
+-- Seed Raw Materials / Ingredients
+INSERT INTO public.inventory_items (name, category, quantity, unit, min_threshold, cost_per_unit) VALUES
+('Basmati Rice', 'Grains & Staples', 35.00, 'kg', 10.00, 95.00),
+('Burger Buns', 'Bakery', 60.00, 'pcs', 20.00, 8.00),
+('Cooking Salt', 'Seasoning', 15.00, 'kg', 5.00, 22.00),
+('Sunflower Cooking Oil', 'Oils', 25.00, 'liters', 8.00, 140.00),
+('Fresh Chicken', 'Meat & Poultry', 30.00, 'kg', 10.00, 220.00),
+('Wheat Flour (Atta)', 'Grains & Staples', 25.00, 'kg', 6.00, 48.00),
+('All-Purpose Flour (Maida)', 'Grains & Staples', 20.00, 'kg', 5.00, 45.00),
+('Refined White Sugar', 'Grains & Staples', 18.00, 'kg', 5.00, 42.00),
+('Fresh Milk', 'Dairy', 15.00, 'liters', 5.00, 56.00),
+('Butter & Ghee', 'Dairy', 8.00, 'kg', 3.00, 580.00),
+('Biryani Garam Masala', 'Seasoning', 5.00, 'kg', 2.00, 650.00),
+('Paneer (Cottage Cheese)', 'Dairy', 12.00, 'kg', 4.00, 360.00)
+ON CONFLICT DO NOTHING;
+
+

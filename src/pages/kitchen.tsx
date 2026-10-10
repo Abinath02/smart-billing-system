@@ -1,12 +1,28 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { supabase } from '../lib/supabaseClient';
-import { Order, Waiter, MenuItem, Profile } from '../types/database.types';
+import { Order, Waiter, MenuItem, Profile, InventoryItem, InventoryLog } from '../types/database.types';
 import { KitchenLogin } from '../components/Kitchen/KitchenLogin';
 import { OrderCard } from '../components/Kitchen/OrderCard';
 import { AssignWaiterModal } from '../components/Kitchen/AssignWaiterModal';
 import { AddWaiterModal } from '../components/Kitchen/AddWaiterModal';
 import { MenuAvailabilityTab } from '../components/Kitchen/MenuAvailabilityTab';
+import { KitchenInventoryTab } from '../components/Kitchen/KitchenInventoryTab';
+
+const DEFAULT_INVENTORY_ITEMS: InventoryItem[] = [
+  { id: '10000000-0000-0000-0000-000000000001', name: 'Basmati Rice', category: 'Grains & Staples', quantity: 35.0, unit: 'kg', min_threshold: 10.0, cost_per_unit: 95, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000002', name: 'Burger Buns', category: 'Bakery', quantity: 60.0, unit: 'pcs', min_threshold: 20.0, cost_per_unit: 8, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000003', name: 'Cooking Salt', category: 'Seasoning', quantity: 15.0, unit: 'kg', min_threshold: 5.0, cost_per_unit: 22, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000004', name: 'Sunflower Cooking Oil', category: 'Oils', quantity: 25.0, unit: 'liters', min_threshold: 8.0, cost_per_unit: 140, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000005', name: 'Fresh Chicken', category: 'Meat & Poultry', quantity: 30.0, unit: 'kg', min_threshold: 10.0, cost_per_unit: 220, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000006', name: 'Wheat Flour (Atta)', category: 'Grains & Staples', quantity: 25.0, unit: 'kg', min_threshold: 6.0, cost_per_unit: 48, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000007', name: 'All-Purpose Flour (Maida)', category: 'Grains & Staples', quantity: 20.0, unit: 'kg', min_threshold: 5.0, cost_per_unit: 45, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000008', name: 'Refined White Sugar', category: 'Grains & Staples', quantity: 18.0, unit: 'kg', min_threshold: 5.0, cost_per_unit: 42, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000009', name: 'Fresh Milk', category: 'Dairy', quantity: 15.0, unit: 'liters', min_threshold: 5.0, cost_per_unit: 56, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000010', name: 'Butter & Ghee', category: 'Dairy', quantity: 8.0, unit: 'kg', min_threshold: 3.0, cost_per_unit: 580, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000011', name: 'Biryani Garam Masala', category: 'Seasoning', quantity: 5.0, unit: 'kg', min_threshold: 2.0, cost_per_unit: 650, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: '10000000-0000-0000-0000-000000000012', name: 'Paneer (Cottage Cheese)', category: 'Dairy', quantity: 12.0, unit: 'kg', min_threshold: 4.0, cost_per_unit: 360, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+];
 
 export const KitchenDashboard: React.FC = () => {
   // Staff Auth State
@@ -17,10 +33,13 @@ export const KitchenDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [waiters, setWaiters] = useState<Waiter[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(DEFAULT_INVENTORY_ITEMS);
+  const [inventoryLogs, setInventoryLogs] = useState<InventoryLog[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [lastRefreshedTime, setLastRefreshedTime] = useState<string>('');
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<'orders' | 'menu' | 'ready'>('orders');
+  // Tab State: orders | inventory | menu | ready
+  const [activeTab, setActiveTab] = useState<'orders' | 'inventory' | 'menu' | 'ready'>('orders');
 
   // Modals State
   const [selectedOrderForAssign, setSelectedOrderForAssign] = useState<Order | null>(null);
@@ -50,44 +69,44 @@ export const KitchenDashboard: React.FC = () => {
     }
   }, []);
 
-  // 1. Check Authentication on Mount
+  // 1. Strict Authentication Check on Mount
   useEffect(() => {
     const checkAuth = async () => {
       setAuthChecking(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-        if (profile) {
-          setCurrentUser(profile as Profile);
+          if (profile && (profile.role === 'kitchen' || profile.role === 'admin') && profile.is_active) {
+            setCurrentUser(profile as Profile);
+          } else {
+            setCurrentUser(null);
+          }
         } else {
-          setCurrentUser({
-            id: session.user.id,
-            email: session.user.email!,
-            full_name: 'Kitchen Staff',
-            role: 'kitchen',
-            is_active: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
+          setCurrentUser(null);
         }
+      } catch (err) {
+        console.error('Kitchen auth check failed:', err);
+        setCurrentUser(null);
+      } finally {
+        setAuthChecking(false);
       }
-      setAuthChecking(false);
     };
 
     checkAuth();
   }, []);
 
-  // 2. Fetch Orders, Waiters, and Menu Items
-  const fetchAllData = useCallback(async () => {
-    setLoadingOrders(true);
+  // 2. Fetch Orders, Waiters, Menu Items, and Inventory
+  const fetchAllData = useCallback(async (silent = false) => {
+    if (!silent) setLoadingOrders(true);
     try {
       // Fetch orders with nested order_items
       const { data: ordersData, error: ordersErr } = await supabase
@@ -100,7 +119,7 @@ export const KitchenDashboard: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (ordersErr) console.error('Orders error:', ordersErr);
-      else setOrders(ordersData as Order[]);
+      else if (ordersData) setOrders(ordersData as Order[]);
 
       // Fetch active waiters
       const { data: waitersData } = await supabase
@@ -115,10 +134,34 @@ export const KitchenDashboard: React.FC = () => {
         .select('*')
         .order('category');
       if (menuData) setMenuItems(menuData as MenuItem[]);
+
+      // Fetch Inventory Raw Materials
+      const { data: invData } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .order('name');
+      if (invData && invData.length > 0) {
+        setInventoryItems(invData as InventoryItem[]);
+      }
+
+      // Fetch Inventory Activity Logs
+      const { data: logsData } = await supabase
+        .from('inventory_logs')
+        .select(`
+          *,
+          item:inventory_items (*)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (logsData) {
+        setInventoryLogs(logsData as InventoryLog[]);
+      }
+
+      setLastRefreshedTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } catch (err) {
       console.error('Error fetching kitchen dashboard data:', err);
     } finally {
-      setLoadingOrders(false);
+      if (!silent) setLoadingOrders(false);
     }
   }, []);
 
@@ -128,7 +171,19 @@ export const KitchenDashboard: React.FC = () => {
     }
   }, [currentUser, fetchAllData]);
 
-  // 3. Supabase Realtime Subscription for Live Kitchen Orders
+  // 3. 5-Second Interval Polling Timer for Kitchen Live Orders Sync
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Guaranteed 5-second auto refresh as required
+    const intervalId = setInterval(() => {
+      fetchAllData(true); // silent fetch every 5000ms
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [currentUser, fetchAllData]);
+
+  // 4. Supabase Realtime Subscription for Instant Live Updates
   useEffect(() => {
     if (!currentUser) return;
 
@@ -139,7 +194,6 @@ export const KitchenDashboard: React.FC = () => {
         { event: '*', schema: 'public', table: 'orders' },
         async (payload) => {
           if (payload.eventType === 'INSERT') {
-            // Fetch complete order with items
             const { data } = await supabase
               .from('orders')
               .select('*, order_items(*), waiter:waiters(*)')
@@ -174,7 +228,7 @@ export const KitchenDashboard: React.FC = () => {
     };
   }, [currentUser, soundEnabled, playKitchenChime]);
 
-  // 4. Action: Start Cooking
+  // 5. Action: Start Cooking
   const handleStartCooking = async (orderId: string) => {
     try {
       const { error } = await supabase
@@ -191,36 +245,52 @@ export const KitchenDashboard: React.FC = () => {
     }
   };
 
-  // 5. Action: Open Modal to Mark as Cooked & Assign Waiter
+  // 6. Action: Open Modal to Mark as Cooked & Assign Waiter
   const handleOpenAssignModal = (order: Order) => {
     setSelectedOrderForAssign(order);
     setIsAssignModalOpen(true);
   };
 
-  // 6. Action: Assign Waiter and Mark as Ready
-  const handleAssignWaiterAndReady = async (orderId: string, waiterId: string) => {
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: 'ready',
-        waiter_id: waiterId,
-      })
-      .eq('id', orderId);
+  // 7. Action: Assign Waiter and Mark as Ready
+  const handleAssignWaiterAndReady = async (waiterId: string) => {
+    if (!selectedOrderForAssign) return;
 
-    if (error) throw error;
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'ready',
+          waiter_id: waiterId,
+        })
+        .eq('id', selectedOrderForAssign.id);
 
-    const assignedWaiter = waiters.find((w) => w.id === waiterId);
+      if (error) throw error;
 
+      // Update local state
+      const assignedWaiter = waiters.find((w) => w.id === waiterId);
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === selectedOrderForAssign.id
+            ? { ...o, status: 'ready', waiter_id: waiterId, waiter: assignedWaiter }
+            : o
+        )
+      );
+
+      setIsAssignModalOpen(false);
+      setSelectedOrderForAssign(null);
+    } catch (err: any) {
+      alert('Error assigning waiter: ' + err.message);
+    }
+  };
+
+  // 8. Action: Mark as Paid (from Ready tab if necessary)
+  const handleMarkAsServed = async (orderId: string) => {
     setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? { ...o, status: 'ready', waiter_id: waiterId, waiter: assignedWaiter }
-          : o
-      )
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'paid' } : o))
     );
   };
 
-  // 7. Action: Logout
+  // 9. Action: Logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
@@ -233,18 +303,22 @@ export const KitchenDashboard: React.FC = () => {
 
   const readyOrders = orders.filter((o) => o.status === 'ready');
 
+  const lowStockCount = inventoryItems.filter(
+    (item) => item.quantity <= item.min_threshold
+  ).length;
+
   if (authChecking) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
         <div className="flex items-center gap-3">
           <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-sm font-semibold">Loading Kitchen System...</span>
+          <span className="text-sm font-semibold">Validating Kitchen Staff Access...</span>
         </div>
       </div>
     );
   }
 
-  // Auth Guard
+  // Auth Guard Gate
   if (!currentUser) {
     return <KitchenLogin onLoginSuccess={(profile) => setCurrentUser(profile)} />;
   }
@@ -267,19 +341,23 @@ export const KitchenDashboard: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-lg font-black tracking-tight">Kitchen Display (KDS)</h1>
-                  <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                  </span>
+                  {/* Live 5-second pulse sync badge */}
+                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-950/80 border border-emerald-800 rounded-full text-emerald-300 text-[10px] font-extrabold tracking-wide">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>LIVE 5s AUTO-SYNC</span>
+                  </div>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Staff: <span className="text-orange-400 font-bold">{currentUser.full_name}</span> ({currentUser.role})
+                  Chef: <span className="text-orange-400 font-bold">{currentUser.full_name}</span> ({currentUser.role})
+                  {lastRefreshedTime && (
+                    <span className="text-slate-500 ml-2">Synced at {lastRefreshedTime}</span>
+                  )}
                 </p>
               </div>
             </div>
 
             {/* Top Navigation Tabs */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 onClick={() => setActiveTab('orders')}
                 className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
@@ -292,6 +370,27 @@ export const KitchenDashboard: React.FC = () => {
                 {activeKitchenOrders.length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-white text-orange-600 text-[10px] font-extrabold">
                     {activeKitchenOrders.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Store & Raw Materials Tab */}
+              <button
+                onClick={() => setActiveTab('inventory')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  activeTab === 'inventory'
+                    ? 'bg-orange-600 text-white shadow-md'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                <span>📦 Raw Materials (இருப்பு)</span>
+                {lowStockCount > 0 ? (
+                  <span className="px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[10px] font-extrabold animate-pulse">
+                    {lowStockCount} Low
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.2 rounded-full bg-slate-700 text-slate-300 text-[10px]">
+                    {inventoryItems.length}
                   </span>
                 )}
               </button>
@@ -320,7 +419,7 @@ export const KitchenDashboard: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <span>📦 Menu Availability</span>
+                <span>🚫 Menu Toggle</span>
               </button>
             </div>
 
@@ -342,7 +441,7 @@ export const KitchenDashboard: React.FC = () => {
                 onClick={() => setIsAddWaiterModalOpen(true)}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1"
               >
-                <span>+</span> Add Waiter
+                <span>+</span> Waiter
               </button>
 
               <button
@@ -357,23 +456,26 @@ export const KitchenDashboard: React.FC = () => {
 
         {/* Main Dashboard Container */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
-          {/* TAB 1: LIVE ORDERS */}
+          {/* TAB 1: LIVE ORDERS (Auto-refreshes every 5 seconds) */}
           {activeTab === 'orders' && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                    Active Kitchen Orders
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <span>Active Kitchen Orders</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                      ⚡ 5s Auto-Refresh Active
+                    </span>
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Live Realtime incoming food orders from customer QR scans
+                    Live orders from customer QR menu refresh automatically every 5 seconds.
                   </p>
                 </div>
                 <button
-                  onClick={fetchAllData}
-                  className="px-3 py-1 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1"
+                  onClick={() => fetchAllData(false)}
+                  className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition active:scale-95"
                 >
-                  <span>🔄</span> Refresh
+                  <span>🔄</span> Refresh Now
                 </button>
               </div>
 
@@ -388,13 +490,15 @@ export const KitchenDashboard: React.FC = () => {
                 </div>
               ) : activeKitchenOrders.length === 0 ? (
                 <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-12 text-center max-w-lg mx-auto my-12">
-                  <span className="text-5xl">✨</span>
-                  <h3 className="text-base font-bold text-slate-800 mt-3">
-                    All caught up, Chef!
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    No pending orders right now. New customer QR orders will appear here automatically in real time.
+                  <div className="text-5xl mb-3">🍳</div>
+                  <h3 className="text-lg font-bold text-slate-700">Kitchen is All Caught Up!</h3>
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                    No active cooking orders right now. Orders placed by customers will automatically show up here within 5 seconds.
                   </p>
+                  <div className="mt-4 inline-flex items-center gap-2 text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>Monitoring live orders every 5s...</span>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -402,8 +506,8 @@ export const KitchenDashboard: React.FC = () => {
                     <OrderCard
                       key={order.id}
                       order={order}
-                      onMarkAsCooked={handleOpenAssignModal}
                       onStartCooking={handleStartCooking}
+                      onMarkAsCooked={handleOpenAssignModal}
                     />
                   ))}
                 </div>
@@ -411,62 +515,66 @@ export const KitchenDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 2: READY TO SERVE ORDERS */}
+          {/* TAB 2: STORE & RAW MATERIALS (INGREDIENTS INVENTORY & ALERT SYSTEM) */}
+          {activeTab === 'inventory' && (
+            <KitchenInventoryTab
+              inventoryItems={inventoryItems}
+              inventoryLogs={inventoryLogs}
+              onRefresh={() => fetchAllData(true)}
+              currentUser={currentUser}
+            />
+          )}
+
+          {/* TAB 3: READY ORDERS */}
           {activeTab === 'ready' && (
             <div>
               <div className="mb-4">
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                  Ready for Pickup
+                  Dishes Ready for Table Service
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Cooked dishes currently being served by assigned waiters
+                  Assigned to waiters for immediate table delivery
                 </p>
               </div>
 
               {readyOrders.length === 0 ? (
-                <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-md mx-auto my-12">
-                  <span className="text-4xl">🍽️</span>
-                  <p className="text-sm font-bold text-gray-700 mt-2">
-                    No orders awaiting pickup
-                  </p>
+                <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-md mx-auto my-8">
+                  <div className="text-4xl mb-2">🍽️</div>
+                  <h3 className="text-base font-bold text-slate-700">No Orders Waiting to be Served</h3>
+                  <p className="text-xs text-slate-400 mt-1">Cooked orders ready for delivery appear here.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {readyOrders.map((order) => (
                     <div
                       key={order.id}
-                      className="bg-white rounded-3xl p-5 border border-green-200 shadow-sm flex flex-col justify-between"
+                      className="bg-white rounded-3xl p-5 shadow-sm border border-emerald-200 flex flex-col justify-between"
                     >
                       <div>
-                        <div className="flex items-center justify-between border-b pb-3 border-gray-100">
-                          <div>
-                            <span className="text-2xl font-black text-gray-900">
-                              Table {order.table_no}
-                            </span>
-                            <p className="text-xs font-mono text-gray-400">{order.bill_no}</p>
-                          </div>
-                          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800 text-xs font-bold uppercase">
-                            Ready 🍽️
+                        <div className="flex justify-between items-center mb-3">
+                          <span className="text-base font-black text-emerald-800">
+                            Table {order.table_no}
+                          </span>
+                          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-extrabold uppercase">
+                            Ready
                           </span>
                         </div>
-
-                        {/* Assigned Waiter Badge */}
-                        <div className="mt-3 p-2.5 rounded-xl bg-green-50 border border-green-200 text-xs text-green-900 flex items-center justify-between">
-                          <span className="font-medium">Assigned Waiter:</span>
-                          <span className="font-extrabold text-sm text-green-800">
-                            {order.waiter?.name || 'Assigned'}
+                        <p className="text-xs text-slate-500 mb-2">
+                          Bill: <span className="font-mono font-bold text-slate-700">{order.bill_no}</span>
+                        </p>
+                        <p className="text-xs text-slate-700 font-semibold mb-3">
+                          Assigned Waiter:{' '}
+                          <span className="text-orange-600 font-bold">
+                            {order.waiter?.name || 'Assigned to Staff'}
                           </span>
-                        </div>
+                        </p>
 
-                        {/* Items list */}
-                        <div className="mt-3 space-y-1">
+                        <div className="space-y-1 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                           {order.order_items?.map((item) => (
-                            <div
-                              key={item.id}
-                              className="text-xs flex justify-between text-gray-700 py-0.5"
-                            >
-                              <span>
-                                {item.quantity}x {item.item_name}
+                            <div key={item.id} className="text-xs flex justify-between">
+                              <span className="text-slate-700 font-medium">{item.item_name}</span>
+                              <span className="font-extrabold text-slate-900">
+                                × {item.quantity}
                               </span>
                             </div>
                           ))}
@@ -479,7 +587,7 @@ export const KitchenDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 3: MENU AVAILABILITY */}
+          {/* TAB 4: MENU AVAILABILITY */}
           {activeTab === 'menu' && (
             <div>
               <div className="mb-4">
