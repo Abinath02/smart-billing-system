@@ -599,19 +599,19 @@ CREATE POLICY "Allow insert inventory_logs" ON public.inventory_logs FOR INSERT 
 ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory_items;
 
 -- Seed Raw Materials / Ingredients
-INSERT INTO public.inventory_items (name, category, quantity, unit, min_threshold, cost_per_unit) VALUES
-('Basmati Rice', 'Grains & Staples', 35.00, 'kg', 10.00, 95.00),
-('Burger Buns', 'Bakery', 60.00, 'pcs', 20.00, 8.00),
-('Cooking Salt', 'Seasoning', 15.00, 'kg', 5.00, 22.00),
-('Sunflower Cooking Oil', 'Oils', 25.00, 'liters', 8.00, 140.00),
-('Fresh Chicken', 'Meat & Poultry', 30.00, 'kg', 10.00, 220.00),
-('Wheat Flour (Atta)', 'Grains & Staples', 25.00, 'kg', 6.00, 48.00),
-('All-Purpose Flour (Maida)', 'Grains & Staples', 20.00, 'kg', 5.00, 45.00),
-('Refined White Sugar', 'Grains & Staples', 18.00, 'kg', 5.00, 42.00),
-('Fresh Milk', 'Dairy', 15.00, 'liters', 5.00, 56.00),
-('Butter & Ghee', 'Dairy', 8.00, 'kg', 3.00, 580.00),
-('Biryani Garam Masala', 'Seasoning', 5.00, 'kg', 2.00, 650.00),
-('Paneer (Cottage Cheese)', 'Dairy', 12.00, 'kg', 4.00, 360.00)
-ON CONFLICT DO NOTHING;
+INSERT INTO public.inventory_items (id, name, category, quantity, unit, min_threshold, cost_per_unit) VALUES
+('10000000-0000-0000-0000-000000000001', 'Basmati Rice', 'Grains & Staples', 35.00, 'kg', 10.00, 95.00),
+('10000000-0000-0000-0000-000000000002', 'Burger Buns', 'Bakery', 60.00, 'pcs', 20.00, 8.00),
+('10000000-0000-0000-0000-000000000003', 'Cooking Salt', 'Seasoning', 15.00, 'kg', 5.00, 22.00),
+('10000000-0000-0000-0000-000000000004', 'Sunflower Cooking Oil', 'Oils', 25.00, 'liters', 8.00, 140.00),
+('10000000-0000-0000-0000-000000000005', 'Fresh Chicken', 'Meat & Poultry', 30.00, 'kg', 10.00, 220.00),
+('10000000-0000-0000-0000-000000000006', 'Wheat Flour (Atta)', 'Grains & Staples', 25.00, 'kg', 6.00, 48.00),
+('10000000-0000-0000-0000-000000000007', 'All-Purpose Flour (Maida)', 'Grains & Staples', 20.00, 'kg', 5.00, 45.00),
+('10000000-0000-0000-0000-000000000008', 'Refined White Sugar', 'Grains & Staples', 18.00, 'kg', 5.00, 42.00),
+('10000000-0000-0000-0000-000000000009', 'Fresh Milk', 'Dairy', 15.00, 'liters', 5.00, 56.00),
+('10000000-0000-0000-0000-000000000010', 'Butter & Ghee', 'Dairy', 8.00, 'kg', 3.00, 580.00),
+('10000000-0000-0000-0000-000000000011', 'Biryani Garam Masala', 'Seasoning', 5.00, 'kg', 2.00, 650.00),
+('10000000-0000-0000-0000-000000000012', 'Paneer (Cottage Cheese)', 'Dairy', 12.00, 'kg', 4.00, 360.00)
+ON CONFLICT (id) DO NOTHING;
 
 
