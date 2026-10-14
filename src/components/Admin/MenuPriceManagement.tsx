@@ -78,12 +78,12 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
         .from('menu_items')
         .update({ price: newPrice, updated_at: new Date().toISOString() })
         .eq('id', item.id)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
 
-      onItemUpdated(data as MenuItem);
+      const updated = data && data.length > 0 ? (data[0] as MenuItem) : { ...item, price: newPrice };
+      onItemUpdated(updated);
       setBanner({ type: 'success', message: `✅ Updated price for "${item.name}" to Rs. ${newPrice.toFixed(2)}` });
       setEditingPriceMap((prev) => {
         const copy = { ...prev };
@@ -122,12 +122,11 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
             is_available: true,
           },
         ])
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
 
-      if (onItemAdded && data) onItemAdded(data as MenuItem);
+      if (onItemAdded && data && data.length > 0) onItemAdded(data[0] as MenuItem);
       if (onRefresh) onRefresh();
 
       setBanner({ type: 'success', message: `✅ Added dish "${newItemName.trim()}" at Rs. ${priceVal.toFixed(2)}` });

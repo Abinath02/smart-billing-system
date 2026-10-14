@@ -201,7 +201,7 @@ DROP POLICY IF EXISTS "Allow delete menu_items" ON public.menu_items;
 
 CREATE POLICY "Allow select menu_items" ON public.menu_items FOR SELECT USING (true);
 CREATE POLICY "Allow insert menu_items" ON public.menu_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update menu_items" ON public.menu_items FOR UPDATE USING (true);
+CREATE POLICY "Allow update menu_items" ON public.menu_items FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Allow delete menu_items" ON public.menu_items FOR DELETE USING (true);
 
 -- Offers Policies

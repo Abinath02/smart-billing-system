@@ -27,19 +27,50 @@ export const MenuAvailabilityTab: React.FC<MenuAvailabilityTabProps> = ({
     const newStatus = !item.is_available;
     setUpdatingId(item.id);
 
+    // Optimistically update the UI immediately
+    const previousItem = { ...item };
+    const optimisticItem: MenuItem = {
+      ...item,
+      is_available: newStatus,
+      updated_at: new Date().toISOString(),
+    };
+    onItemUpdated(optimisticItem);
+
     try {
+      // 1. Attempt direct Supabase update (avoiding .single() which errors if RLS hides returned row)
       const { data, error } = await supabase
         .from('menu_items')
-        .update({ is_available: newStatus })
+        .update({
+          is_available: newStatus,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', item.id)
-        .select()
-        .single();
+        .select();
 
-      if (error) throw error;
-      onItemUpdated(data as MenuItem);
+      if (error || !data || data.length === 0) {
+        // 2. If direct update fails or returns 0 rows due to RLS, fallback to server API
+        const res = await fetch('/api/menu/toggle-availability', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: item.id, is_available: newStatus }),
+        });
+
+        const resData = await res.json();
+        if (!res.ok || !resData.success) {
+          throw new Error(resData.error || error?.message || 'Database update failed');
+        }
+
+        if (resData.item) {
+          onItemUpdated(resData.item as MenuItem);
+        }
+      } else {
+        onItemUpdated(data[0] as MenuItem);
+      }
     } catch (err: any) {
       console.error('Error toggling menu availability:', err);
-      alert('Failed to update item availability: ' + err.message);
+      // Revert optimistic update on error
+      onItemUpdated(previousItem);
+      alert('Failed to update item availability: ' + (err.message || 'Unknown error'));
     } finally {
       setUpdatingId(null);
     }
