@@ -204,18 +204,31 @@ CREATE POLICY "Allow insert menu_items" ON public.menu_items FOR INSERT WITH CHE
 CREATE POLICY "Allow update menu_items" ON public.menu_items FOR UPDATE USING (true);
 CREATE POLICY "Allow delete menu_items" ON public.menu_items FOR DELETE USING (true);
 
-CREATE POLICY "Public can view active offers" ON public.offers
-    FOR SELECT USING (is_active = true);
+-- Offers Policies
+DROP POLICY IF EXISTS "Public can view active offers" ON public.offers;
+DROP POLICY IF EXISTS "Staff and Admins can manage offers" ON public.offers;
+DROP POLICY IF EXISTS "Allow select offers" ON public.offers;
+DROP POLICY IF EXISTS "Allow insert offers" ON public.offers;
+DROP POLICY IF EXISTS "Allow update offers" ON public.offers;
+DROP POLICY IF EXISTS "Allow delete offers" ON public.offers;
 
-CREATE POLICY "Staff and Admins can manage offers" ON public.offers
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow select offers" ON public.offers FOR SELECT USING (true);
+CREATE POLICY "Allow insert offers" ON public.offers FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update offers" ON public.offers FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow delete offers" ON public.offers FOR DELETE USING (true);
 
--- Waiters: viewable and insertable by authenticated staff (Kitchen/Admin/Cashier)
-CREATE POLICY "Staff can view waiters" ON public.waiters
-    FOR SELECT USING (auth.role() = 'authenticated');
+-- Waiters Policies
+DROP POLICY IF EXISTS "Staff can view waiters" ON public.waiters;
+DROP POLICY IF EXISTS "Staff can manage waiters" ON public.waiters;
+DROP POLICY IF EXISTS "Allow select waiters" ON public.waiters;
+DROP POLICY IF EXISTS "Allow insert waiters" ON public.waiters;
+DROP POLICY IF EXISTS "Allow update waiters" ON public.waiters;
+DROP POLICY IF EXISTS "Allow delete waiters" ON public.waiters;
 
-CREATE POLICY "Staff can manage waiters" ON public.waiters
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow select waiters" ON public.waiters FOR SELECT USING (true);
+CREATE POLICY "Allow insert waiters" ON public.waiters FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update waiters" ON public.waiters FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow delete waiters" ON public.waiters FOR DELETE USING (true);
 
 -- Orders & Order Items: Fully permissive for QR ordering and staff operations
 DROP POLICY IF EXISTS "Staff can view all orders" ON public.orders;
@@ -560,28 +573,27 @@ CREATE OR REPLACE TRIGGER trg_inventory_items_updated_at
 ALTER TABLE public.inventory_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Authenticated staff can view inventory" ON public.inventory_items
-    FOR SELECT USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated staff can view inventory" ON public.inventory_items;
+DROP POLICY IF EXISTS "Authenticated staff can update inventory" ON public.inventory_items;
+DROP POLICY IF EXISTS "Authenticated staff can insert inventory items" ON public.inventory_items;
+DROP POLICY IF EXISTS "Admins can delete inventory items" ON public.inventory_items;
+DROP POLICY IF EXISTS "Allow select inventory_items" ON public.inventory_items;
+DROP POLICY IF EXISTS "Allow insert inventory_items" ON public.inventory_items;
+DROP POLICY IF EXISTS "Allow update inventory_items" ON public.inventory_items;
+DROP POLICY IF EXISTS "Allow delete inventory_items" ON public.inventory_items;
 
-CREATE POLICY "Authenticated staff can update inventory" ON public.inventory_items
-    FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow select inventory_items" ON public.inventory_items FOR SELECT USING (true);
+CREATE POLICY "Allow insert inventory_items" ON public.inventory_items FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update inventory_items" ON public.inventory_items FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow delete inventory_items" ON public.inventory_items FOR DELETE USING (true);
 
-CREATE POLICY "Authenticated staff can insert inventory items" ON public.inventory_items
-    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Authenticated staff can view inventory logs" ON public.inventory_logs;
+DROP POLICY IF EXISTS "Authenticated staff can insert inventory logs" ON public.inventory_logs;
+DROP POLICY IF EXISTS "Allow select inventory_logs" ON public.inventory_logs;
+DROP POLICY IF EXISTS "Allow insert inventory_logs" ON public.inventory_logs;
 
-CREATE POLICY "Admins can delete inventory items" ON public.inventory_items
-    FOR DELETE USING (
-        EXISTS (
-            SELECT 1 FROM public.profiles 
-            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-        )
-    );
-
-CREATE POLICY "Authenticated staff can view inventory logs" ON public.inventory_logs
-    FOR SELECT USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated staff can insert inventory logs" ON public.inventory_logs
-    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow select inventory_logs" ON public.inventory_logs FOR SELECT USING (true);
+CREATE POLICY "Allow insert inventory_logs" ON public.inventory_logs FOR INSERT WITH CHECK (true);
 
 -- Realtime Publication for live inventory counters
 ALTER PUBLICATION supabase_realtime ADD TABLE public.inventory_items;
