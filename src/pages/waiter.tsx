@@ -109,21 +109,39 @@ export const WaiterDashboard: React.FC = () => {
         } = await supabase.auth.getSession();
 
         if (session?.user) {
-          const { data: profile } = await supabase
+          let { data: profile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
 
-          if (profile) {
-            setCurrentWaiter({
-              id: profile.id,
-              name: profile.full_name,
-              phone: profile.phone || null,
-              emp_code: 'STAFF',
-              is_active: profile.is_active !== false,
-              created_at: profile.created_at,
-            });
+          if (!profile && session.user.email) {
+            const { data: byEmail } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('email', session.user.email.toLowerCase())
+              .single();
+            if (byEmail) profile = byEmail;
+          }
+
+          if (profile && (profile.role === 'waiter' || profile.role === 'admin') && profile.is_active !== false) {
+            // Fetch waiter table entry
+            const { data: wRecord } = await supabase
+              .from('waiters')
+              .select('*')
+              .eq('id', profile.id)
+              .single();
+
+            setCurrentWaiter(
+              (wRecord as Waiter) || {
+                id: profile.id,
+                name: profile.full_name,
+                phone: profile.phone || null,
+                emp_code: 'W-01',
+                is_active: true,
+                created_at: profile.created_at,
+              }
+            );
             setAuthChecking(false);
             return;
           }

@@ -170,7 +170,7 @@ export const StaffManagement: React.FC = () => {
         </div>
 
         <div className="flex gap-1.5 w-full sm:w-auto">
-          {['All', 'kitchen', 'cashier', 'admin'].map((role) => (
+          {['All', 'waiter', 'kitchen', 'cashier', 'admin'].map((role) => (
             <button
               key={role}
               onClick={() => setRoleFilter(role)}
@@ -232,10 +232,18 @@ export const StaffManagement: React.FC = () => {
                           ? 'bg-amber-100 text-amber-800 border border-amber-300'
                           : p.role === 'kitchen'
                           ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                          : p.role === 'waiter'
+                          ? 'bg-purple-100 text-purple-800 border border-purple-300'
                           : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                       }`}
                     >
-                      {p.role === 'admin' ? '👑 Admin' : p.role === 'kitchen' ? '👨‍🍳 Kitchen' : '💰 Cashier'}
+                      {p.role === 'admin'
+                        ? '👑 Admin'
+                        : p.role === 'kitchen'
+                        ? '👨‍🍳 Kitchen'
+                        : p.role === 'waiter'
+                        ? '🤵 Waiter'
+                        : '💰 Cashier'}
                     </span>
                   </td>
                   <td className="py-3 px-3 text-slate-600 font-medium">
@@ -345,8 +353,9 @@ export const StaffManagement: React.FC = () => {
                   onChange={(e) => setNewRole(e.target.value as UserRole)}
                   className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
                 >
-                  <option value="kitchen">👨‍🍳 Kitchen Staff (KDS Order Cooking & Ingredients)</option>
-                  <option value="cashier">💰 Cashier POS (Billing & Payments)</option>
+                  <option value="waiter">🤵 Waiter / Floor Server (Table Confirmation &amp; Serving)</option>
+                  <option value="kitchen">👨‍🍳 Kitchen Staff (KDS Order Cooking &amp; Ingredients)</option>
+                  <option value="cashier">💰 Cashier POS (Billing &amp; Payments)</option>
                   <option value="admin">👑 Restaurant Administrator (Full Access)</option>
                 </select>
               </div>

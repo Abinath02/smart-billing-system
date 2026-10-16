@@ -20,7 +20,7 @@ export default async function handler(
     });
   }
 
-  const validRoles: UserRole[] = ['admin', 'cashier', 'kitchen'];
+  const validRoles: UserRole[] = ['admin', 'cashier', 'kitchen', 'waiter'];
   if (!validRoles.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -72,6 +72,19 @@ export default async function handler(
       });
 
       if (profileErr) console.warn('Admin profile upsert warning:', profileErr);
+
+      // If creating a waiter account, also sync to the waiters table for floor POS
+      if (role === 'waiter') {
+        const empCode = `W-${Math.floor(10 + Math.random() * 90)}`;
+        const { error: waiterErr } = await adminClient.from('waiters').upsert({
+          id: userId,
+          name: fullName.trim(),
+          phone: phone?.trim() || null,
+          emp_code: empCode,
+          is_active: true,
+        });
+        if (waiterErr) console.warn('Admin waiters table sync warning:', waiterErr);
+      }
     } else {
       // Standard Supabase client sign up
       const { data: signUpData, error: signUpErr } = await defaultClient.auth.signUp({
@@ -101,6 +114,18 @@ export default async function handler(
         });
 
         if (profileErr) console.warn('Profile upsert warning:', profileErr);
+
+        if (role === 'waiter') {
+          const empCode = `W-${Math.floor(10 + Math.random() * 90)}`;
+          const { error: waiterErr } = await defaultClient.from('waiters').upsert({
+            id: userId,
+            name: fullName.trim(),
+            phone: phone?.trim() || null,
+            emp_code: empCode,
+            is_active: true,
+          });
+          if (waiterErr) console.warn('Waiters sync warning:', waiterErr);
+        }
       }
     }
 
