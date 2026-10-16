@@ -1,6 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { supabase as defaultSupabase } from '../../../lib/supabaseClient';
+import {
+  validateSriLankanPhone,
+  validateEmail,
+  validateCustomerName,
+  validateTableNumber,
+} from '../../../utils/validation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -48,9 +54,25 @@ export default async function handler(
     appendToExisting = false,
   }: PlaceOrderRequestBody = req.body;
 
-  // 1. Validation
-  if (!tableNo || !tableNo.trim()) {
-    return res.status(400).json({ success: false, error: 'Table number is required.' });
+  // 1. Strict Server Validation
+  const tableCheck = validateTableNumber(tableNo || '');
+  if (!tableCheck.isValid) {
+    return res.status(400).json({ success: false, error: tableCheck.error });
+  }
+
+  const nameCheck = validateCustomerName(customerName || '');
+  if (!nameCheck.isValid) {
+    return res.status(400).json({ success: false, error: nameCheck.error });
+  }
+
+  const phoneCheck = validateSriLankanPhone(customerPhone || '');
+  if (!phoneCheck.isValid) {
+    return res.status(400).json({ success: false, error: phoneCheck.error });
+  }
+
+  const emailCheck = validateEmail(customerEmail || '');
+  if (!emailCheck.isValid) {
+    return res.status(400).json({ success: false, error: emailCheck.error });
   }
 
   if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
@@ -63,9 +85,9 @@ export default async function handler(
     // Attempt 1: Call secure database RPC if available
     const rpcPayload = {
       p_table_no: tableNo.trim().toUpperCase(),
-      p_customer_name: customerName?.trim() || 'Guest Customer',
-      p_customer_phone: customerPhone?.trim() || '',
-      p_customer_email: customerEmail?.trim() || '',
+      p_customer_name: (customerName || '').trim(),
+      p_customer_phone: phoneCheck.formatted,
+      p_customer_email: (customerEmail || '').trim().toLowerCase(),
       p_notes: notes?.trim() || null,
       p_items: cartItems.map((ci) => ({
         item_id: ci.itemId,
@@ -142,7 +164,8 @@ export default async function handler(
 
       if (item.offerId && offersMap.has(item.offerId)) {
         const offer = offersMap.get(item.offerId)!;
-        if (offer.item_id === dish.id) {
+        const isExpired = Boolean(offer.end_date && new Date(offer.end_date).getTime() < Date.now());
+        if (offer.item_id === dish.id && !isExpired && offer.is_active !== false) {
           if (offer.discount_details?.type === 'percentage') {
             itemDiscount = Number(
               ((unitPrice * (offer.discount_details.value || 0)) / 100).toFixed(2)
@@ -255,9 +278,9 @@ export default async function handler(
           {
             bill_no: generatedBillNo,
             table_no: normalizedTable,
-            customer_name: customerName?.trim() || 'Guest Customer',
-            customer_phone: customerPhone?.trim() || null,
-            customer_email: customerEmail?.trim() || null,
+            customer_name: (customerName || '').trim(),
+            customer_phone: phoneCheck.formatted,
+            customer_email: (customerEmail || '').trim().toLowerCase(),
             subtotal: calculatedSubtotal,
             discount_amount: calculatedDiscount,
             tax_amount: calculatedTax,

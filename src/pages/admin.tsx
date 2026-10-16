@@ -28,7 +28,7 @@ export const AdminDashboard: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copiedTable, setCopiedTable] = useState<string | null>(null);
 
-  // 1. Strict Auth Guard Check
+  // 1. Strict Auth Guard Check on Mount & Navigation
   useEffect(() => {
     const checkAuth = async () => {
       setAuthChecking(true);
@@ -70,6 +70,34 @@ export const AdminDashboard: React.FC = () => {
     };
 
     checkAuth();
+
+    // Re-verify on browser back/forward cache navigation
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        checkAuth();
+      }
+    };
+
+    const handlePopState = () => {
+      checkAuth();
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setCurrentUser(null);
+      }
+    });
+
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('popstate', handlePopState);
+      subscription.unsubscribe();
+    };
   }, []);
 
 
@@ -133,7 +161,23 @@ export const AdminDashboard: React.FC = () => {
   }, [currentUser, fetchAllData]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (e) {
+      console.warn('Signout error:', e);
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            localStorage.removeItem(key);
+          }
+        });
+        sessionStorage.clear();
+      } catch (e) {}
+      window.history.replaceState(null, '', window.location.pathname);
+      window.location.replace(window.location.pathname);
+    }
     setCurrentUser(null);
   };
 
@@ -159,12 +203,12 @@ export const AdminDashboard: React.FC = () => {
       'Table Number',
       'Customer Name',
       'Customer Phone',
-      'Taxable Subtotal (INR)',
-      'CGST 2.5% (INR)',
-      'SGST 2.5% (INR)',
-      'Total GST 5% (INR)',
-      'Discount (INR)',
-      'Invoice Total (INR)',
+      'Taxable Subtotal (Rs.)',
+      'CGST 2.5% (Rs.)',
+      'SGST 2.5% (Rs.)',
+      'Total GST 5% (Rs.)',
+      'Discount (Rs.)',
+      'Invoice Total (Rs.)',
       'Payment Mode',
       'Status',
     ];

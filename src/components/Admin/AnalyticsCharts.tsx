@@ -166,9 +166,9 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders, menuIt
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `₹${val}`} />
+              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(val) => `Rs. ${val}`} />
               <Tooltip
-                formatter={(value: any) => [`₹${value}`, 'Collections']}
+                formatter={(value: any) => [`Rs. ${Number(value || 0).toLocaleString('en-US')}`, 'Collections']}
                 contentStyle={{
                   backgroundColor: '#0f172a',
                   borderRadius: '12px',
@@ -225,7 +225,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders, menuIt
                   </Pie>
                   <Tooltip
                     formatter={(val, _, props) => [
-                      `${val}% (₹${(props.payload as any).revenue})`,
+                      `${val}% (Rs. ${Number((props.payload as any).revenue || 0).toLocaleString('en-US')})`,
                       'Revenue Share',
                     ]}
                     contentStyle={{

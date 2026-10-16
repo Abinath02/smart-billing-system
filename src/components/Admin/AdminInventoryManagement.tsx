@@ -383,7 +383,7 @@ export const AdminInventoryManagement: React.FC = () => {
                     <span className="text-sm block">{item.name}</span>
                     {item.cost_per_unit ? (
                       <span className="text-[10px] text-slate-400 font-normal">
-                        ₹{item.cost_per_unit} per {item.unit}
+                        Rs. {item.cost_per_unit} per {item.unit}
                       </span>
                     ) : null}
                   </td>
@@ -640,7 +640,7 @@ export const AdminInventoryManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Cost per Unit (₹ - Optional)
+                  Cost per Unit (Rs. - Optional)
                 </label>
                 <input
                   type="number"

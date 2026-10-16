@@ -69,7 +69,7 @@ export const KitchenDashboard: React.FC = () => {
     }
   }, []);
 
-  // 1. Strict Authentication Check on Mount
+  // 1. Strict Authentication Check on Mount & History Navigation
   useEffect(() => {
     const checkAuth = async () => {
       setAuthChecking(true);
@@ -111,6 +111,34 @@ export const KitchenDashboard: React.FC = () => {
     };
 
     checkAuth();
+
+    // Re-verify on browser back/forward cache navigation
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        checkAuth();
+      }
+    };
+
+    const handlePopState = () => {
+      checkAuth();
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setCurrentUser(null);
+      }
+    });
+
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('popstate', handlePopState);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // 2. Fetch Orders, Waiters, Menu Items, and Inventory
@@ -307,9 +335,25 @@ export const KitchenDashboard: React.FC = () => {
     );
   };
 
-  // 9. Action: Logout
+  // 9. Action: Logout (with history wipe to prevent back button restoration)
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (e) {
+      console.warn('Signout error:', e);
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            localStorage.removeItem(key);
+          }
+        });
+        sessionStorage.clear();
+      } catch (e) {}
+      window.history.replaceState(null, '', window.location.pathname);
+      window.location.replace(window.location.pathname);
+    }
     setCurrentUser(null);
   };
 

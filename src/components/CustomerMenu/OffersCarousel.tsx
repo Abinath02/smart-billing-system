@@ -1,16 +1,66 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Offer, MenuItem } from '../../types/database.types';
 
 interface OffersCarouselProps {
   offers: Offer[];
   menuItems: MenuItem[];
   onAddOfferToCart: (offer: Offer, item: MenuItem) => void;
+  onOfferExpired?: (offerId: string) => void;
 }
+
+// Live Countdown Badge Component
+const OfferCountdownBadge: React.FC<{
+  endDate?: string | null;
+  offerId: string;
+  onExpire?: (id: string) => void;
+}> = ({ endDate, offerId, onExpire }) => {
+  const [timeLeft, setTimeLeft] = useState<{
+    hours: number;
+    minutes: number;
+    seconds: number;
+    expired: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!endDate) return;
+
+    const tick = () => {
+      const diff = new Date(endDate).getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0, expired: true });
+        if (onExpire) onExpire(offerId);
+        return;
+      }
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft({ hours, minutes, seconds, expired: false });
+    };
+
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [endDate, offerId, onExpire]);
+
+  if (!endDate || !timeLeft || timeLeft.expired) return null;
+
+  return (
+    <div className="absolute bottom-2.5 left-2.5 bg-slate-950/85 backdrop-blur-md text-amber-300 font-black text-[11px] px-2.5 py-1 rounded-full shadow-lg border border-amber-400/50 flex items-center gap-1.5 tracking-wider">
+      <span className="animate-spin text-xs">⏳</span>
+      <span>
+        {timeLeft.hours > 0 ? `${String(timeLeft.hours).padStart(2, '0')}:` : ''}
+        {String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}
+      </span>
+      <span className="text-[9px] uppercase text-amber-400/80 font-bold">left</span>
+    </div>
+  );
+};
 
 export const OffersCarousel: React.FC<OffersCarouselProps> = ({
   offers,
   menuItems,
   onAddOfferToCart,
+  onOfferExpired,
 }) => {
   if (!offers || offers.length === 0) return null;
 
@@ -61,6 +111,13 @@ export const OffersCarousel: React.FC<OffersCarouselProps> = ({
                 <div className="absolute top-2.5 right-2.5 bg-red-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-full shadow-lg tracking-wider uppercase flex items-center gap-1">
                   <span>🔥</span> {discountText}
                 </div>
+
+                {/* Expiry Countdown Timer */}
+                <OfferCountdownBadge
+                  endDate={offer.end_date}
+                  offerId={offer.id}
+                  onExpire={onOfferExpired}
+                />
               </div>
 
               {/* Offer Details */}

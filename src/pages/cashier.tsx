@@ -5,6 +5,7 @@ import { Order, OrderItem, Profile } from '../types/database.types';
 import { generateInvoicePDF } from '../utils/generateInvoicePDF';
 import { sendInvoiceNotification } from '../utils/sendInvoiceNotification';
 import { CashierLogin } from '../components/Cashier/CashierLogin';
+import { formatRs } from '../utils/currency';
 
 type CashierPaymentMode = 'cash' | 'card' | 'upi' | 'split';
 
@@ -35,7 +36,7 @@ export const CashierDashboard: React.FC = () => {
   const restaurantVpa = process.env.NEXT_PUBLIC_RESTAURANT_UPI_VPA || 'spicegarden@upi';
   const restaurantName = process.env.NEXT_PUBLIC_RESTAURANT_NAME || 'Spice Garden';
 
-  // 1. Auth Guard Check
+  // 1. Auth Guard Check on Mount & Navigation
   useEffect(() => {
     const checkAuth = async () => {
       setAuthChecking(true);
@@ -77,11 +78,81 @@ export const CashierDashboard: React.FC = () => {
     };
 
     checkAuth();
+
+    // Re-verify on browser back/forward cache navigation
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        checkAuth();
+      }
+    };
+
+    const handlePopState = () => {
+      checkAuth();
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setCurrentUser(null);
+      }
+    });
+
+    window.addEventListener('pageshow', handlePageShow);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+      window.removeEventListener('popstate', handlePopState);
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const [cashierViewTab, setCashierViewTab] = useState<'active' | 'history'>('active');
+  const [cashierViewTab, setCashierViewTab] = useState<'active' | 'history' | 'daily_sales'>('active');
   const [pastPaidOrders, setPastPaidOrders] = useState<Order[]>([]);
   const [historySearch, setHistorySearch] = useState<string>('');
+
+  // Live Daily Sales Calculations
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const todaySettledOrders = useMemo(() => {
+    return pastPaidOrders.filter((o) => {
+      const d = new Date(o.updated_at || o.created_at).toISOString().split('T')[0];
+      return d === todayStr;
+    });
+  }, [pastPaidOrders, todayStr]);
+
+  const todayTotalRevenue = useMemo(() => {
+    return todaySettledOrders.reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  }, [todaySettledOrders]);
+
+  const todayCashTotal = useMemo(() => {
+    return todaySettledOrders
+      .filter((o) => o.payment_mode === 'cash')
+      .reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  }, [todaySettledOrders]);
+
+  const todayCardTotal = useMemo(() => {
+    return todaySettledOrders
+      .filter((o) => o.payment_mode === 'card')
+      .reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  }, [todaySettledOrders]);
+
+  const todayUpiTotal = useMemo(() => {
+    return todaySettledOrders
+      .filter((o) => o.payment_mode === 'upi' || o.payment_mode === 'online')
+      .reduce((acc, curr) => acc + Number(curr.total_amount || 0), 0);
+  }, [todaySettledOrders]);
+
+  const todayTaxTotal = useMemo(() => {
+    return todaySettledOrders.reduce((acc, curr) => acc + Number(curr.tax_amount || 0), 0);
+  }, [todaySettledOrders]);
+
+  const todayDiscountTotal = useMemo(() => {
+    return todaySettledOrders.reduce((acc, curr) => acc + Number(curr.discount_amount || 0), 0);
+  }, [todaySettledOrders]);
+
+  const todayAvgTicket = todaySettledOrders.length > 0 ? todayTotalRevenue / todaySettledOrders.length : 0;
 
   // 2. Fetch Open Unpaid Orders
   const fetchOpenOrders = useCallback(async () => {
@@ -248,7 +319,7 @@ export const CashierDashboard: React.FC = () => {
           payment_mode: dbPaymentMode,
           total_amount: verifiedAmount,
           notes: paymentMode === 'split'
-            ? `${selectedOrder.notes || ''} [Split Payment: Cash Rs. ${splitCash.toFixed(2)} + Digital Rs. ${splitDigital.toFixed(2)}]`.trim()
+            ? `${selectedOrder.notes || ''} [Split Payment: Cash ${formatRs(splitCash)} + Digital ${formatRs(splitDigital)}]`.trim()
             : selectedOrder.notes,
         })
         .eq('id', selectedOrder.id)
@@ -301,7 +372,23 @@ export const CashierDashboard: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (e) {
+      console.warn('Signout error:', e);
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            localStorage.removeItem(key);
+          }
+        });
+        sessionStorage.clear();
+      } catch (e) {}
+      window.history.replaceState(null, '', window.location.pathname);
+      window.location.replace(window.location.pathname);
+    }
     setCurrentUser(null);
   };
 
@@ -367,6 +454,67 @@ export const CashierDashboard: React.FC = () => {
 
         {/* Main Content Layout */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6">
+          {/* Daily Shift & Sales Overview Bar */}
+          <div className="mb-6 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">📊</span>
+                <div>
+                  <h2 className="text-sm sm:text-base font-black tracking-tight text-white">
+                    Today&apos;s Till &amp; Daily Sales ({new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })})
+                  </h2>
+                  <p className="text-[11px] text-slate-400">
+                    Live updates as bills are settled at the cashier counter
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCashierViewTab('daily_sales');
+                    fetchPastOrders();
+                  }}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1.5 ${
+                    cashierViewTab === 'daily_sales'
+                      ? 'bg-emerald-500 text-slate-950 font-black shadow-md'
+                      : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  <span>Detailed Sales Audit</span>
+                  <span>↗</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Revenue</span>
+                <span className="text-sm sm:text-base font-black text-emerald-400">{formatRs(todayTotalRevenue)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Settled Bills</span>
+                <span className="text-sm sm:text-base font-black text-white">{todaySettledOrders.length} orders</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Cash Collected</span>
+                <span className="text-sm sm:text-base font-black text-amber-400">{formatRs(todayCashTotal)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Card Collected</span>
+                <span className="text-sm sm:text-base font-black text-blue-400">{formatRs(todayCardTotal)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">QR / Online</span>
+                <span className="text-sm sm:text-base font-black text-purple-400">{formatRs(todayUpiTotal)}</span>
+              </div>
+              <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Avg. Ticket</span>
+                <span className="text-sm sm:text-base font-black text-slate-200">{formatRs(todayAvgTicket)}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* LEFT COLUMN: Open Orders Queue & Search (5 Columns) */}
             <div className="lg:col-span-5 space-y-4">
@@ -402,14 +550,14 @@ export const CashierDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Live Pending & Ready Bills Queue vs Past Bills History Tabs */}
+              {/* Live Pending & Ready Bills Queue vs Past Bills History vs Daily Sales Tabs */}
               <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-200">
                 {/* Tab Buttons */}
                 <div className="flex bg-slate-100 p-1 rounded-2xl mb-3.5 gap-1">
                   <button
                     type="button"
                     onClick={() => setCashierViewTab('active')}
-                    className={`flex-1 py-2 text-xs font-black rounded-xl transition ${
+                    className={`flex-1 py-2 text-[11px] sm:text-xs font-black rounded-xl transition ${
                       cashierViewTab === 'active'
                         ? 'bg-white text-slate-900 shadow-sm'
                         : 'text-slate-500 hover:text-slate-800'
@@ -423,13 +571,27 @@ export const CashierDashboard: React.FC = () => {
                       setCashierViewTab('history');
                       fetchPastOrders();
                     }}
-                    className={`flex-1 py-2 text-xs font-black rounded-xl transition ${
+                    className={`flex-1 py-2 text-[11px] sm:text-xs font-black rounded-xl transition ${
                       cashierViewTab === 'history'
                         ? 'bg-white text-slate-900 shadow-sm'
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    📜 Past Bills ({pastPaidOrders.length})
+                    📜 Past ({pastPaidOrders.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCashierViewTab('daily_sales');
+                      fetchPastOrders();
+                    }}
+                    className={`flex-1 py-2 text-[11px] sm:text-xs font-black rounded-xl transition ${
+                      cashierViewTab === 'daily_sales'
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    📊 Today ({todaySettledOrders.length})
                   </button>
                 </div>
 
@@ -490,7 +652,7 @@ export const CashierDashboard: React.FC = () => {
 
                               <div className="text-right">
                                 <span className="text-sm font-black text-orange-600">
-                                  Rs. {Number(ord.total_amount).toFixed(2)}
+                                  {formatRs(ord.total_amount)}
                                 </span>
                                 <p className="text-[10px] text-slate-400 font-medium">
                                   {ord.order_items?.length || 0} items
@@ -502,7 +664,7 @@ export const CashierDashboard: React.FC = () => {
                       </div>
                     )}
                   </>
-                ) : (
+                ) : cashierViewTab === 'history' ? (
                   <>
                     <div className="mb-3">
                       <input
@@ -567,7 +729,7 @@ export const CashierDashboard: React.FC = () => {
 
                                 <div className="text-right">
                                   <span className="text-xs font-black text-emerald-700">
-                                    Rs. {Number(ord.total_amount).toFixed(2)}
+                                    {formatRs(ord.total_amount)}
                                   </span>
                                   <span className="block text-[10px] text-orange-600 font-bold hover:underline">
                                     View Receipt ↗
@@ -579,6 +741,146 @@ export const CashierDashboard: React.FC = () => {
                       </div>
                     )}
                   </>
+                ) : (
+                  /* TAB 3: Today's Full Sales Details & Chronological Audit Feed */
+                  <div className="space-y-4">
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 text-slate-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                          Today&apos;s Financial Summary
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                          Live Counter
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Gross Sales Revenue:</span>
+                          <span className="font-black text-emerald-800">{formatRs(todayTotalRevenue)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Tax / Service (5%):</span>
+                          <span className="font-semibold text-slate-700">{formatRs(todayTaxTotal)}</span>
+                        </div>
+                        {todayDiscountTotal > 0 && (
+                          <div className="flex justify-between text-green-700">
+                            <span>Discounts Granted:</span>
+                            <span className="font-semibold">- {formatRs(todayDiscountTotal)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between pt-1 border-t border-emerald-200">
+                          <span className="text-slate-500">Average Bill Size:</span>
+                          <span className="font-bold text-slate-800">{formatRs(todayAvgTicket)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Mode Distribution Breakdown */}
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
+                        Payment Mode Breakdown
+                      </h4>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                          <span className="text-[10px] font-bold text-amber-800 block">💵 Cash</span>
+                          <span className="font-black text-amber-950 text-xs mt-0.5 block">
+                            {formatRs(todayCashTotal)}
+                          </span>
+                          <span className="text-[9px] text-amber-700">
+                            {todaySettledOrders.filter((o) => o.payment_mode === 'cash').length} bills
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                          <span className="text-[10px] font-bold text-blue-800 block">💳 Card</span>
+                          <span className="font-black text-blue-950 text-xs mt-0.5 block">
+                            {formatRs(todayCardTotal)}
+                          </span>
+                          <span className="text-[9px] text-blue-700">
+                            {todaySettledOrders.filter((o) => o.payment_mode === 'card').length} bills
+                          </span>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
+                          <span className="text-[10px] font-bold text-purple-800 block">📱 QR / Online</span>
+                          <span className="font-black text-purple-950 text-xs mt-0.5 block">
+                            {formatRs(todayUpiTotal)}
+                          </span>
+                          <span className="text-[9px] text-purple-700">
+                            {todaySettledOrders.filter((o) => o.payment_mode === 'upi' || o.payment_mode === 'online').length} bills
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Chronological Real-time Settlement Audit Feed */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                          Settlement Log ({todaySettledOrders.length})
+                        </h4>
+                        <span className="text-[10px] text-slate-400">Click to re-open receipt</span>
+                      </div>
+
+                      {todaySettledOrders.length === 0 ? (
+                        <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
+                          <p className="text-xl mb-1">⏳</p>
+                          <p className="text-xs font-semibold">No bills settled yet today.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                          {todaySettledOrders.map((ord) => {
+                            const isSelected = selectedOrder?.id === ord.id;
+                            const updateTime = new Date(ord.updated_at || ord.created_at).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            });
+
+                            return (
+                              <div
+                                key={ord.id}
+                                onClick={() => handleSelectOrder(ord)}
+                                className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between text-xs ${
+                                  isSelected
+                                    ? 'border-emerald-500 bg-emerald-50/80 shadow-md ring-2 ring-emerald-200'
+                                    : 'border-slate-100 bg-slate-50/60 hover:bg-slate-100'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-black text-slate-900">Table {ord.table_no}</span>
+                                    <span
+                                      className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded-full uppercase ${
+                                        ord.payment_mode === 'cash'
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : ord.payment_mode === 'card'
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : 'bg-purple-100 text-purple-800'
+                                      }`}
+                                    >
+                                      {ord.payment_mode || 'PAID'}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 mt-0.5">
+                                    <span className="font-mono">{ord.bill_no}</span> • <span>{updateTime}</span>
+                                    {ord.customer_name ? ` • ${ord.customer_name}` : ''}
+                                  </div>
+                                </div>
+
+                                <div className="text-right">
+                                  <span className="font-black text-emerald-700 block">
+                                    {formatRs(ord.total_amount)}
+                                  </span>
+                                  <span className="text-[10px] text-orange-600 font-bold hover:underline">
+                                    Receipt ↗
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -680,10 +982,10 @@ export const CashierDashboard: React.FC = () => {
                                 {item.quantity}
                               </td>
                               <td className="py-2.5 px-3 text-right text-slate-600">
-                                Rs. {Number(item.unit_price).toFixed(2)}
+                                {formatRs(item.unit_price)}
                               </td>
                               <td className="py-2.5 px-4 text-right font-bold text-slate-900">
-                                Rs. {Number(item.total_price).toFixed(2)}
+                                {formatRs(item.total_price)}
                               </td>
                             </tr>
                           ))}
@@ -696,22 +998,22 @@ export const CashierDashboard: React.FC = () => {
                   <div className="bg-slate-50 p-4 rounded-2xl space-y-1.5 text-xs text-slate-600 border border-slate-100">
                     <div className="flex justify-between">
                       <span>Subtotal:</span>
-                      <span className="font-semibold">Rs. {Number(selectedOrder.subtotal).toFixed(2)}</span>
+                      <span className="font-semibold">{formatRs(selectedOrder.subtotal)}</span>
                     </div>
                     {selectedOrder.discount_amount > 0 && (
                       <div className="flex justify-between text-green-600 font-semibold">
                         <span>Discount:</span>
-                        <span>- Rs. {Number(selectedOrder.discount_amount).toFixed(2)}</span>
+                        <span>- {formatRs(selectedOrder.discount_amount)}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
                       <span>Tax / Service (5%):</span>
-                      <span className="font-semibold">Rs. {Number(selectedOrder.tax_amount).toFixed(2)}</span>
+                      <span className="font-semibold">{formatRs(selectedOrder.tax_amount)}</span>
                     </div>
                     <div className="flex justify-between text-base font-black text-slate-900 pt-2 border-t border-slate-200">
                       <span>Total Amount:</span>
                       <span className="text-orange-600">
-                        Rs. {Number(selectedOrder.total_amount).toFixed(2)}
+                        {formatRs(selectedOrder.total_amount)}
                       </span>
                     </div>
                   </div>
@@ -815,7 +1117,7 @@ export const CashierDashboard: React.FC = () => {
 
                         <div className="flex items-center justify-between text-xs pt-1.5 border-t border-emerald-200 font-extrabold text-emerald-950">
                           <span>Change to Return:</span>
-                          <span className="text-base text-emerald-700">Rs. {changeDue.toFixed(2)}</span>
+                          <span className="text-base text-emerald-700">{formatRs(changeDue)}</span>
                         </div>
                       </div>
                     )}
@@ -835,7 +1137,7 @@ export const CashierDashboard: React.FC = () => {
                             Digital QR Payment
                           </span>
                           <h4 className="text-lg font-black text-purple-950 mt-1">
-                            Rs. {verifiedAmount.toFixed(2)}
+                            {formatRs(verifiedAmount)}
                           </h4>
                           <p className="text-xs text-purple-800 font-medium">
                             Customer scans with LankaQR, Banking App, or Digital Wallet
@@ -855,7 +1157,7 @@ export const CashierDashboard: React.FC = () => {
                             Split Payment Allocation
                           </h5>
                           <span className="text-[11px] font-bold text-amber-800">
-                            Total: Rs. {verifiedAmount.toFixed(2)}
+                            Total: {formatRs(verifiedAmount)}
                           </span>
                         </div>
 
@@ -877,14 +1179,14 @@ export const CashierDashboard: React.FC = () => {
                               📱 Digital / Card (Rs.)
                             </label>
                             <div className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-purple-700">
-                              Rs. {splitDigital.toFixed(2)}
+                              {formatRs(splitDigital)}
                             </div>
                           </div>
                         </div>
 
                         {splitDigital > 0 && (
                           <div className="p-2.5 bg-white rounded-xl border border-amber-200 flex items-center justify-between text-xs">
-                            <span className="text-purple-800 font-semibold">Payment Link for Rs. {splitDigital.toFixed(2)}</span>
+                            <span className="text-purple-800 font-semibold">Payment Link for {formatRs(splitDigital)}</span>
                             <a
                               href={upiIntentString}
                               target="_blank"

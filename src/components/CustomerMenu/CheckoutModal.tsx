@@ -1,7 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { CartItem, CustomerDetails } from '../../types/cart.types';
 import { Order } from '../../types/database.types';
+import { formatRs } from '../../utils/currency';
+import {
+  validateSriLankanPhone,
+  validateEmail,
+  validateCustomerName,
+  validateTableNumber,
+} from '../../utils/validation';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -34,6 +41,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     notes: '',
   });
 
+  const [touched, setTouched] = useState({
+    tableNo: false,
+    customerName: false,
+    customerPhone: false,
+    customerEmail: false,
+  });
+
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -48,6 +62,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setForm((prev) => ({ ...prev, tableNo: initialTableNo }));
     }
   }, [initialTableNo]);
+
+  // Real-time validations
+  const phoneValidation = useMemo(() => {
+    if (!form.customerPhone) return null;
+    return validateSriLankanPhone(form.customerPhone);
+  }, [form.customerPhone]);
+
+  const emailValidation = useMemo(() => {
+    if (!form.customerEmail) return null;
+    return validateEmail(form.customerEmail);
+  }, [form.customerEmail]);
+
+  const nameValidation = useMemo(() => {
+    if (!form.customerName) return null;
+    return validateCustomerName(form.customerName);
+  }, [form.customerName]);
+
+  const tableValidation = useMemo(() => {
+    if (!form.tableNo) return null;
+    return validateTableNumber(form.tableNo);
+  }, [form.tableNo]);
 
   // Check if this table has an active running order (pending, cooking, ready)
   useEffect(() => {
@@ -105,48 +140,66 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBlur = (field: keyof typeof touched) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setTouched({
+      tableNo: true,
+      customerName: true,
+      customerPhone: true,
+      customerEmail: true,
+    });
 
-    // Form Validation
-    const cleanTable = form.tableNo.trim().toUpperCase();
-    if (!cleanTable) {
-      setErrorMessage('Please enter or select your Table Number.');
+    // 1. Validate Table Number
+    const tableCheck = validateTableNumber(form.tableNo);
+    if (!tableCheck.isValid) {
+      setErrorMessage(tableCheck.error || 'Please enter or select a valid Table Number.');
       return;
     }
-    const cleanDigits = form.customerPhone.replace(/\D/g, '');
-    if (!cleanDigits || cleanDigits.length < 9) {
-      setErrorMessage('Please enter a valid Sri Lankan phone number (e.g. 771234567 or 0771234567).');
+
+    // 2. Validate Customer Name
+    const nameCheck = validateCustomerName(form.customerName);
+    if (!nameCheck.isValid) {
+      setErrorMessage(nameCheck.error || 'Please enter your name.');
       return;
     }
-    if (!form.customerEmail.trim() || !form.customerEmail.includes('@')) {
-      setErrorMessage('Please enter a valid email address for your digital bill.');
+
+    // 3. Validate Sri Lankan Phone Number
+    const phoneCheck = validateSriLankanPhone(form.customerPhone);
+    if (!phoneCheck.isValid) {
+      setErrorMessage(phoneCheck.error || 'Please enter a valid Sri Lankan mobile number.');
       return;
     }
+
+    // 4. Validate Email
+    const emailCheck = validateEmail(form.customerEmail);
+    if (!emailCheck.isValid) {
+      setErrorMessage(emailCheck.error || 'Please enter a valid email address.');
+      return;
+    }
+
+    // 5. Validate Cart
     if (cartItems.length === 0) {
-      setErrorMessage('Your cart is empty.');
+      setErrorMessage('Your cart is empty. Please add items before placing an order.');
       return;
     }
-
-    const formattedSriLankanPhone = cleanDigits.startsWith('94')
-      ? `+${cleanDigits}`
-      : cleanDigits.startsWith('0')
-      ? `+94${cleanDigits.slice(1)}`
-      : `+94${cleanDigits}`;
 
     try {
       setLoading(true);
 
-      // Secure Server-Side Ordering API Call (Fixes Client-Side Price Manipulation Vulnerability)
+      // Secure Server-Side Ordering API Call
       const res = await fetch('/api/orders/place', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tableNo: cleanTable,
-          customerName: form.customerName.trim() || 'Guest Customer',
-          customerPhone: formattedSriLankanPhone,
-          customerEmail: form.customerEmail.trim(),
+          tableNo: form.tableNo.trim().toUpperCase(),
+          customerName: form.customerName.trim(),
+          customerPhone: phoneCheck.formatted,
+          customerEmail: form.customerEmail.trim().toLowerCase(),
           notes: form.notes?.trim() || null,
           appendToExisting: Boolean(existingOrder && appendToExisting),
           cartItems: cartItems.map((c) => ({
@@ -200,7 +253,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           )}
 
-          {/* Running Table Session Banner (Issue 5 Fix) */}
+          {/* Running Table Session Banner */}
           {existingOrder && (
             <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-2">
               <div className="flex items-center justify-between">
@@ -252,7 +305,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </span>
                     )}
                   </div>
-                  <span className="font-bold text-gray-900">Rs. {item.totalPrice.toFixed(2)}</span>
+                  <span className="font-bold text-gray-900">{formatRs(item.totalPrice)}</span>
                 </div>
               ))}
             </div>
@@ -261,21 +314,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5 text-xs text-gray-600">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>Rs. {subtotal.toFixed(2)}</span>
+                <span>{formatRs(subtotal)}</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-600 font-semibold">
                   <span>Discount Applied</span>
-                  <span>- Rs. {discount.toFixed(2)}</span>
+                  <span>- {formatRs(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between">
                 <span>GST / Service (5%)</span>
-                <span>Rs. {taxAmount.toFixed(2)}</span>
+                <span>{formatRs(taxAmount)}</span>
               </div>
               <div className="flex justify-between text-sm font-extrabold text-gray-900 pt-1.5 border-t border-dashed border-gray-300">
                 <span>Estimated Payable</span>
-                <span className="text-orange-600">Rs. {finalTotal.toFixed(2)}</span>
+                <span className="text-orange-600">{formatRs(finalTotal)}</span>
               </div>
             </div>
           </div>
@@ -283,7 +336,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {/* Customer Details Form */}
           <form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-3.5">
             <div className="grid grid-cols-2 gap-3">
-              {/* Table Number with Auto-lock & Validation (Issue 7 Fix) */}
+              {/* Table Number */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-bold text-gray-700">
@@ -312,9 +365,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       placeholder="e.g. T-04"
                       value={form.tableNo}
                       onChange={handleInputChange}
+                      onBlur={() => handleBlur('tableNo')}
                       list="tables-datalist"
                       required
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50"
+                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50 ${
+                        touched.tableNo && tableValidation && !tableValidation.isValid
+                          ? 'border-red-400 bg-red-50/30'
+                          : 'border-gray-300'
+                      }`}
                     />
                     <datalist id="tables-datalist">
                       {standardTables.map((t) => (
@@ -323,23 +381,39 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </datalist>
                   </div>
                 )}
+                {touched.tableNo && tableValidation && !tableValidation.isValid && (
+                  <p className="text-[10px] text-red-600 mt-1 font-semibold">{tableValidation.error}</p>
+                )}
               </div>
 
               {/* Customer Name */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Your Name</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Your Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="customerName"
-                  placeholder="e.g. Dinesh"
+                  placeholder="e.g. Dinesh Kumar"
                   value={form.customerName}
                   onChange={handleInputChange}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  onBlur={() => handleBlur('customerName')}
+                  required
+                  className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                    touched.customerName && nameValidation && !nameValidation.isValid
+                      ? 'border-red-400 bg-red-50/30'
+                      : touched.customerName && nameValidation?.isValid
+                      ? 'border-green-400 bg-green-50/20'
+                      : 'border-gray-300'
+                  }`}
                 />
+                {touched.customerName && nameValidation && !nameValidation.isValid && (
+                  <p className="text-[10px] text-red-600 mt-1 font-semibold">{nameValidation.error}</p>
+                )}
               </div>
             </div>
 
-            {/* Sri Lanka Phone Number */}
+            {/* Sri Lanka Phone Number with Strict Validation */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
                 Phone Number (WhatsApp Bill) <span className="text-red-500">*</span>
@@ -355,16 +429,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   maxLength={12}
                   value={form.customerPhone}
                   onChange={handleInputChange}
+                  onBlur={() => handleBlur('customerPhone')}
                   required
-                  className="w-full pl-16 pr-3.5 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className={`w-full pl-16 pr-3.5 py-2.5 rounded-xl border text-sm font-semibold tracking-wider focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                    touched.customerPhone && phoneValidation && !phoneValidation.isValid
+                      ? 'border-red-400 bg-red-50/30'
+                      : touched.customerPhone && phoneValidation?.isValid
+                      ? 'border-green-400 bg-green-50/20'
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
-              <span className="text-[10px] text-gray-500 mt-1 block">
-                Enter Sri Lankan mobile number (e.g. 771234567 or 0771234567)
-              </span>
+              {touched.customerPhone && phoneValidation && !phoneValidation.isValid ? (
+                <p className="text-[10px] text-red-600 mt-1 font-semibold">⚠️ {phoneValidation.error}</p>
+              ) : phoneValidation?.isValid ? (
+                <p className="text-[10px] text-green-700 mt-1 font-bold">
+                  ✅ Valid Sri Lankan number ({phoneValidation.formatted})
+                </p>
+              ) : (
+                <span className="text-[10px] text-gray-500 mt-1 block">
+                  Enter mobile number (e.g. 771234567 or 0771234567)
+                </span>
+              )}
             </div>
 
-            {/* Email Address */}
+            {/* Email Address with Strict Validation */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1">
                 Email Address (E-Receipt) <span className="text-red-500">*</span>
@@ -372,12 +461,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <input
                 type="email"
                 name="customerEmail"
-                placeholder="you@example.com"
+                placeholder="name@example.com"
                 value={form.customerEmail}
                 onChange={handleInputChange}
+                onBlur={() => handleBlur('customerEmail')}
                 required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                className={`w-full px-3.5 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 ${
+                  touched.customerEmail && emailValidation && !emailValidation.isValid
+                    ? 'border-red-400 bg-red-50/30'
+                    : touched.customerEmail && emailValidation?.isValid
+                    ? 'border-green-400 bg-green-50/20'
+                    : 'border-gray-300'
+                }`}
               />
+              {touched.customerEmail && emailValidation && !emailValidation.isValid ? (
+                <p className="text-[10px] text-red-600 mt-1 font-semibold">⚠️ {emailValidation.error}</p>
+              ) : emailValidation?.isValid ? (
+                <p className="text-[10px] text-green-700 mt-1 font-bold">✅ Valid email address</p>
+              ) : null}
             </div>
 
             {/* Kitchen Cooking Notes */}
@@ -403,7 +504,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <span className="text-[11px] text-gray-500 uppercase font-semibold">
               {existingOrder && appendToExisting ? 'Round Total' : 'Total Amount'}
             </span>
-            <span className="text-xl font-extrabold text-gray-900">Rs. {finalTotal.toFixed(2)}</span>
+            <span className="text-xl font-extrabold text-gray-900">{formatRs(finalTotal)}</span>
           </div>
 
           <button

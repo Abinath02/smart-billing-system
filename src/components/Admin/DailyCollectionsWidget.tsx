@@ -1,5 +1,6 @@
 import React from 'react';
 import { Order } from '../../types/database.types';
+import { formatRs } from '../../utils/currency';
 
 interface DailyCollectionsWidgetProps {
   orders: Order[];
@@ -39,12 +40,12 @@ export const DailyCollectionsWidget: React.FC<DailyCollectionsWidgetProps> = ({ 
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       {/* 1. Daily Collections Card */}
       <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white p-5 rounded-3xl shadow-lg relative overflow-hidden">
-        <div className="absolute right-3 top-3 opacity-15 text-5xl font-black">₹</div>
+        <div className="absolute right-3 top-3 opacity-15 text-3xl font-black">Rs.</div>
         <span className="text-[11px] font-black uppercase tracking-wider text-emerald-200">
           Daily Collections
         </span>
         <h3 className="text-3xl font-black mt-1 tracking-tight">
-          ₹{todayRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          {formatRs(todayRevenue)}
         </h3>
         <p className="text-xs text-emerald-100 mt-2 flex items-center gap-1">
           <span className="font-bold text-white">+{paidTodayOrders.length}</span> settled orders today
@@ -78,8 +79,8 @@ export const DailyCollectionsWidget: React.FC<DailyCollectionsWidgetProps> = ({ 
           <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
             Avg. Order Value (AOV)
           </span>
-          <h3 className="text-3xl font-black text-slate-900 mt-1">
-            ₹{avgOrderValue.toFixed(2)}
+          <h3 className="text-2xl font-black text-slate-900 mt-1">
+            {formatRs(avgOrderValue)}
           </h3>
         </div>
         <p className="text-xs text-slate-400 mt-3 pt-2 border-t border-slate-100">
@@ -95,8 +96,8 @@ export const DailyCollectionsWidget: React.FC<DailyCollectionsWidgetProps> = ({ 
           </span>
           <div className="mt-2 space-y-1.5">
             <div className="flex justify-between text-xs font-bold text-slate-800">
-              <span className="flex items-center gap-1">💵 Cash: ₹{cashRevenue.toFixed(0)}</span>
-              <span className="flex items-center gap-1">💳 Card: ₹{cardRevenue.toFixed(0)}</span>
+              <span className="flex items-center gap-1">💵 Cash: {formatRs(cashRevenue)}</span>
+              <span className="flex items-center gap-1">💳 Card: {formatRs(cardRevenue)}</span>
             </div>
             {/* Visual Progress Bar */}
             <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">

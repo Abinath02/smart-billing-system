@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Offer, MenuItem } from '../../types/database.types';
+import { formatRs } from '../../utils/currency';
 
 interface OffersManagementProps {
   offers: Offer[];
@@ -22,6 +23,8 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
   const [selectedItemId, setSelectedItemId] = useState<string>('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
   const [discountValue, setDiscountValue] = useState<string>('20');
+  const [durationPreset, setDurationPreset] = useState<string>('24h');
+  const [customEndDateTime, setCustomEndDateTime] = useState<string>('');
   const [posterUrl, setPosterUrl] = useState<string>('');
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,7 +45,6 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
 
     setUploadingPoster(true);
     try {
-      // 1. Try Supabase Storage first if bucket 'offer-posters' exists
       const fileName = `offer_${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
       const { data, error } = await supabase.storage
         .from('offer-posters')
@@ -54,7 +56,6 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
           .getPublicUrl(fileName);
         setPosterUrl(publicUrlData.publicUrl);
       } else {
-        // Fallback: Read file as Data URL / Base64 for instant zero-config preview
         const reader = new FileReader();
         reader.onloadend = () => {
           setPosterUrl(reader.result as string);
@@ -73,7 +74,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
     }
   };
 
-  // Submit New Offer
+  // Submit New Offer with Expiry Timer
   const handleCreateOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !selectedItemId) {
@@ -85,6 +86,20 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
     if (isNaN(value) || value <= 0) {
       alert('Please enter a valid discount amount.');
       return;
+    }
+
+    // Compute End Date
+    let endDate: string | null = null;
+    const now = Date.now();
+    if (durationPreset === '1h') endDate = new Date(now + 1 * 3600 * 1000).toISOString();
+    else if (durationPreset === '3h') endDate = new Date(now + 3 * 3600 * 1000).toISOString();
+    else if (durationPreset === '6h') endDate = new Date(now + 6 * 3600 * 1000).toISOString();
+    else if (durationPreset === '12h') endDate = new Date(now + 12 * 3600 * 1000).toISOString();
+    else if (durationPreset === '24h') endDate = new Date(now + 24 * 3600 * 1000).toISOString();
+    else if (durationPreset === '48h') endDate = new Date(now + 48 * 3600 * 1000).toISOString();
+    else if (durationPreset === '7d') endDate = new Date(now + 7 * 24 * 3600 * 1000).toISOString();
+    else if (durationPreset === 'custom' && customEndDateTime) {
+      endDate = new Date(customEndDateTime).toISOString();
     }
 
     setSubmitting(true);
@@ -100,22 +115,27 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
         },
         poster_url: posterUrl.trim() || samplePosters[0].url,
         is_active: true,
+        start_date: new Date().toISOString(),
+        end_date: endDate,
       };
 
       const { data, error } = await supabase
         .from('offers')
         .insert([payload])
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
 
-      onOfferAdded(data as Offer);
-      setMessage('🎉 Offer launched! It is now visible on the Customer QR Menu.');
+      if (data && data.length > 0) {
+        onOfferAdded(data[0] as Offer);
+      }
+      setMessage('🎉 Offer launched! It is now live on the Customer QR Menu with countdown timer.');
       setTitle('');
       setSelectedItemId('');
       setPosterUrl('');
       setDiscountValue('20');
+      setDurationPreset('24h');
+      setCustomEndDateTime('');
     } catch (err: any) {
       console.error('Error creating offer:', err);
       alert('Failed to create offer: ' + err.message);
@@ -131,13 +151,34 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
         .from('offers')
         .update({ is_active: !offer.is_active })
         .eq('id', offer.id)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
-      onOfferUpdated(data as Offer);
+      if (data && data.length > 0) {
+        onOfferUpdated(data[0] as Offer);
+      }
     } catch (err: any) {
       alert('Failed to toggle offer: ' + err.message);
+    }
+  };
+
+  // Extend / Renew Offer by 24 hours
+  const handleExtendOffer = async (offer: Offer, hours = 24) => {
+    try {
+      const newEndDate = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('offers')
+        .update({ end_date: newEndDate, is_active: true })
+        .eq('id', offer.id)
+        .select();
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        onOfferUpdated(data[0] as Offer);
+      }
+      alert(`✅ Extended "${offer.title}" by ${hours} hours!`);
+    } catch (err: any) {
+      alert('Failed to extend offer: ' + err.message);
     }
   };
 
@@ -153,50 +194,62 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
     }
   };
 
+  // Helper to format remaining time
+  const getRemainingTimeText = (endDateStr?: string | null) => {
+    if (!endDateStr) return null;
+    const diff = new Date(endDateStr).getTime() - Date.now();
+    if (diff <= 0) return { expired: true, text: 'Expired' };
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 24) {
+      const days = Math.floor(hours / 24);
+      return { expired: false, text: `${days}d ${hours % 24}h left` };
+    }
+    return { expired: false, text: `${hours}h ${mins}m left` };
+  };
+
   return (
     <div className="space-y-6">
-      {/* 1. Create Offer Form Card */}
+      {/* 1. Create Promotion Card */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-        <div className="border-b pb-4 border-slate-100 mb-5">
-          <span className="text-[11px] font-extrabold uppercase tracking-wider text-orange-600">
-            Promotions & Marketing
-          </span>
-          <h3 className="text-lg font-black text-slate-900">Create New Customer Offer</h3>
-          <p className="text-xs text-slate-500">
-            New offers appear in the top carousel on the Customer QR Menu and automatically calculate discounts at checkout.
-          </p>
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+          <div>
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-orange-600">
+              Flash Deals & Promotions
+            </span>
+            <h3 className="text-lg font-black text-slate-900">Create New Timed Offer</h3>
+          </div>
+          <span className="text-2xl">⏳</span>
         </div>
 
         {message && (
-          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-2xl flex items-center justify-between">
+          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-2xl flex items-center justify-between">
             <span>{message}</span>
-            <button onClick={() => setMessage(null)} className="font-bold text-slate-500">
-              ✕
-            </button>
+            <button onClick={() => setMessage(null)} className="text-emerald-950 font-black">✕</button>
           </div>
         )}
 
-        <form onSubmit={handleCreateOffer} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleCreateOffer} className="mt-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Offer Title */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Offer Title / Headline *
+                Offer Title *
               </label>
               <input
                 type="text"
-                placeholder="e.g. Weekend Biryani Feast - 20% OFF"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                placeholder="e.g. Flash Lunch Deal - Flat 20% OFF"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
               />
             </div>
 
-            {/* Linked Menu Item */}
+            {/* Target Menu Dish */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Link to Menu Item *
+                Apply to Dish *
               </label>
               <select
                 value={selectedItemId}
@@ -207,7 +260,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                 <option value="">-- Select Dish to Discount --</option>
                 {menuItems.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name} ({item.category}) - ₹{item.price.toFixed(2)}
+                    {item.name} ({item.category}) - {formatRs(item.price)}
                   </option>
                 ))}
               </select>
@@ -241,7 +294,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                       : 'bg-white text-slate-600 border-slate-200'
                   }`}
                 >
-                  Flat Amount (₹)
+                  Flat Amount (Rs.)
                 </button>
               </div>
             </div>
@@ -262,7 +315,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                   className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-black text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
                 />
                 <span className="absolute right-3 top-2 text-xs font-bold text-slate-400">
-                  {discountType === 'percentage' ? '%' : '₹'}
+                  {discountType === 'percentage' ? '%' : 'Rs.'}
                 </span>
               </div>
             </div>
@@ -271,11 +324,70 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
               <p className="text-xs text-slate-600">
                 💡 Customers will get{' '}
                 <strong className="text-orange-600 font-extrabold">
-                  {discountType === 'percentage' ? `${discountValue}% OFF` : `₹${discountValue} OFF`}
+                  {discountType === 'percentage' ? `${discountValue}% OFF` : `Rs. ${discountValue} OFF`}
                 </strong>{' '}
                 when ordering this deal!
               </p>
             </div>
+          </div>
+
+          {/* Expiration Timer Selector (Auto-Disappear Feature) */}
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-black text-slate-800">
+                  ⏳ Offer Duration & Expiry Timer
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  Offer shows a live countdown on the customer menu and automatically disappears when time runs out.
+                </p>
+              </div>
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 uppercase">
+                Auto-Disappear
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: '1h', label: '1 Hour' },
+                { id: '3h', label: '3 Hours' },
+                { id: '6h', label: '6 Hours' },
+                { id: '12h', label: '12 Hours' },
+                { id: '24h', label: '24 Hours (1 Day)' },
+                { id: '48h', label: '2 Days' },
+                { id: '7d', label: '7 Days' },
+                { id: 'custom', label: 'Custom Date/Time' },
+                { id: 'none', label: 'No Expiry' },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setDurationPreset(preset.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                    durationPreset === preset.id
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+
+            {durationPreset === 'custom' && (
+              <div className="pt-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Choose Expiration Date & Time:
+                </label>
+                <input
+                  type="datetime-local"
+                  value={customEndDateTime}
+                  onChange={(e) => setCustomEndDateTime(e.target.value)}
+                  required
+                  className="px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                />
+              </div>
+            )}
           </div>
 
           {/* Poster Upload / URL */}
@@ -355,7 +467,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
       {/* 2. Active Offers Grid */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
         <h3 className="text-base font-black text-slate-900 mb-4">
-          Current Active Offers ({offers.length})
+          Current Offers ({offers.length})
         </h3>
 
         {offers.length === 0 ? (
@@ -366,11 +478,15 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {offers.map((offer) => {
               const linkedItem = menuItems.find((m) => m.id === offer.item_id);
+              const timerInfo = getRemainingTimeText(offer.end_date);
+
               return (
                 <div
                   key={offer.id}
                   className={`rounded-2xl border overflow-hidden p-3.5 flex flex-col justify-between transition ${
-                    offer.is_active ? 'border-orange-200 bg-white' : 'border-slate-200 bg-slate-50/50 opacity-60'
+                    offer.is_active && (!timerInfo || !timerInfo.expired)
+                      ? 'border-orange-200 bg-white'
+                      : 'border-slate-200 bg-slate-50/70 opacity-75'
                   }`}
                 >
                   <div>
@@ -390,38 +506,59 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                       <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
                         {offer.discount_details?.type === 'percentage'
                           ? `${offer.discount_details.value}% OFF`
-                          : `₹${offer.discount_details?.value} OFF`}
+                          : `Rs. ${offer.discount_details?.value} OFF`}
                       </div>
+
+                      {/* Expiry Badge */}
+                      {timerInfo && (
+                        <div className={`absolute bottom-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${
+                          timerInfo.expired ? 'bg-red-700 text-white' : 'bg-slate-900/80 backdrop-blur-sm text-amber-300'
+                        }`}>
+                          <span>⏳</span> {timerInfo.text}
+                        </div>
+                      )}
                     </div>
 
                     <h4 className="font-bold text-slate-900 text-xs line-clamp-1">{offer.title}</h4>
                     {linkedItem && (
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Item: <strong className="text-slate-800">{linkedItem.name}</strong>
+                        Item: <strong className="text-slate-800">{linkedItem.name}</strong> ({formatRs(linkedItem.price)})
                       </p>
                     )}
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleOffer(offer)}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider ${
-                        offer.is_active
-                          ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                          : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                      }`}
-                    >
-                      {offer.is_active ? 'Active' : 'Inactive'}
-                    </button>
+                  <div className="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                    {timerInfo?.expired && (
+                      <button
+                        type="button"
+                        onClick={() => handleExtendOffer(offer, 24)}
+                        className="w-full py-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition"
+                      >
+                        🔄 Extend +24 Hours
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteOffer(offer.id)}
-                      className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleOffer(offer)}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider ${
+                          offer.is_active
+                            ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                            : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                        }`}
+                      >
+                        {offer.is_active ? 'Active' : 'Inactive'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOffer(offer.id)}
+                        className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

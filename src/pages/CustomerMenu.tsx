@@ -58,7 +58,12 @@ export const CustomerMenuPage: React.FC = () => {
           .eq('is_active', true);
 
         if (offersError) throw offersError;
-        setOffers(offersData || []);
+        const validOffers = (offersData || []).filter((o: Offer) => {
+          if (!o.is_active) return false;
+          if (o.end_date && new Date(o.end_date).getTime() <= Date.now()) return false;
+          return true;
+        });
+        setOffers(validOffers);
       } catch (err) {
         console.error('Error fetching menu or offers:', err);
       } finally {
@@ -68,6 +73,18 @@ export const CustomerMenuPage: React.FC = () => {
 
     fetchMenuAndOffers();
   }, []);
+
+  // Real-time auto-disappear check for timed offers
+  useEffect(() => {
+    if (offers.length === 0) return;
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setOffers((prev) =>
+        prev.filter((o) => !o.end_date || new Date(o.end_date).getTime() > now)
+      );
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [offers.length]);
 
   // 3. Extract unique categories
   const categories = useMemo(() => {
@@ -248,6 +265,9 @@ export const CustomerMenuPage: React.FC = () => {
             offers={offers}
             menuItems={menuItems}
             onAddOfferToCart={(offer, item) => handleAddToCart(item, offer)}
+            onOfferExpired={(expiredId) =>
+              setOffers((prev) => prev.filter((o) => o.id !== expiredId))
+            }
           />
         )}
 
