@@ -436,6 +436,13 @@ export const CashierDashboard: React.FC = () => {
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 Active Till
               </span>
+              <a
+                href="/waiter"
+                target="_blank"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1"
+              >
+                <span>🤵</span> Waiter POS ↗
+              </a>
               <button
                 onClick={fetchOpenOrders}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"

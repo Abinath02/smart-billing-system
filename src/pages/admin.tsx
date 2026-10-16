@@ -449,6 +449,13 @@ export const AdminDashboard: React.FC = () => {
               >
                 <span>💰</span> Cashier Billing POS ↗
               </a>
+              <a
+                href="/waiter"
+                target="_blank"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <span>🤵</span> Waiter Service POS ↗
+              </a>
             </div>
 
             <button

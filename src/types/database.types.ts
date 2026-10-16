@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'cashier' | 'kitchen';
+export type UserRole = 'admin' | 'cashier' | 'kitchen' | 'waiter';
 export type OrderStatus = 'pending' | 'cooking' | 'ready' | 'paid' | 'cancelled';
 export type PaymentMode = 'cash' | 'card' | 'upi' | 'online' | 'unpaid';
 

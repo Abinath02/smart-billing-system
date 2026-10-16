@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Order } from '../../types/database.types';
+import { formatRs } from '../../utils/currency';
 
 interface OrderSuccessModalProps {
   order: Order;
@@ -14,8 +15,10 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
   onReset,
 }) => {
   const [currentStatus, setCurrentStatus] = useState<string>(order.status);
+  const [waiterId, setWaiterId] = useState<string | null>(order.waiter_id || null);
+  const [waiterName, setWaiterName] = useState<string>(order.waiter?.name || '');
 
-  // Subscribe to live status changes for this specific order
+  // Subscribe to live status and waiter confirmation changes for this order
   useEffect(() => {
     const channel = supabase
       .channel(`order_status_${order.id}`)
@@ -27,9 +30,19 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           table: 'orders',
           filter: `id=eq.${order.id}`,
         },
-        (payload) => {
-          if (payload.new && (payload.new as Order).status) {
-            setCurrentStatus((payload.new as Order).status);
+        async (payload) => {
+          if (payload.new) {
+            const newOrder = payload.new as Order;
+            if (newOrder.status) setCurrentStatus(newOrder.status);
+            if (newOrder.waiter_id) {
+              setWaiterId(newOrder.waiter_id);
+              const { data: wData } = await supabase
+                .from('waiters')
+                .select('name')
+                .eq('id', newOrder.waiter_id)
+                .single();
+              if (wData?.name) setWaiterName(wData.name);
+            }
           }
         }
       )
@@ -40,42 +53,57 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
     };
   }, [order.id]);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return {
-          label: 'Order Sent to Kitchen',
-          color: 'bg-amber-100 text-amber-800 border-amber-300',
-          icon: '⏳',
-        };
+  const getStatusBadge = () => {
+    if (!waiterId && currentStatus === 'pending') {
+      return {
+        label: 'Awaiting Floor Server Confirmation',
+        color: 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse',
+        icon: '⏳',
+        subtext: `Our floor waiter will visit Table ${order.table_no} shortly to confirm your order before our chefs start cooking.`,
+      };
+    }
+    if (waiterId && currentStatus === 'pending') {
+      return {
+        label: `Confirmed by ${waiterName || 'Server'} - Sent to Kitchen!`,
+        color: 'bg-blue-100 text-blue-900 border-blue-300',
+        icon: '👨‍🍳',
+        subtext: 'Your order was verified at your desk and sent to the kitchen.',
+      };
+    }
+
+    switch (currentStatus) {
       case 'cooking':
         return {
           label: 'Chef is Preparing Your Food',
           color: 'bg-blue-100 text-blue-800 border-blue-300',
-          icon: '👨‍🍳',
+          icon: '🔥',
+          subtext: 'Your food is now on the stove / tandoor!',
         };
       case 'ready':
         return {
           label: 'Ready to Serve!',
           color: 'bg-green-100 text-green-800 border-green-300',
           icon: '🍽️',
+          subtext: `${waiterName || 'Your server'} is bringing your dishes to the table now!`,
         };
       case 'paid':
         return {
           label: 'Completed & Paid',
           color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
           icon: '✅',
+          subtext: 'Thank you for dining with us! Please visit again.',
         };
       default:
         return {
-          label: status,
+          label: currentStatus,
           color: 'bg-gray-100 text-gray-800 border-gray-300',
           icon: '📋',
+          subtext: 'Order is being processed.',
         };
     }
   };
 
-  const badge = getStatusBadge(currentStatus);
+  const badge = getStatusBadge();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-fadeIn">
@@ -101,9 +129,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           {isAppended ? 'Round 2 Dishes Added!' : 'Order Placed!'}
         </h2>
         <p className="text-xs text-gray-500 mt-1">
-          {isAppended
-            ? 'Your additional items have been appended to your running table bill.'
-            : 'Your order has been sent to our kitchen team.'}
+          {badge.subtext}
         </p>
 
         {/* Bill & Table Card */}
@@ -122,13 +148,20 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
 
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-500 font-medium">Total Bill:</span>
-            <span className="font-bold text-gray-900">Rs. {Number(order.total_amount).toFixed(2)}</span>
+            <span className="font-bold text-gray-900">{formatRs(order.total_amount)}</span>
           </div>
 
+          {waiterName && (
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-gray-500 font-medium">Assigned Server:</span>
+              <span className="font-bold text-amber-700">🤵 {waiterName}</span>
+            </div>
+          )}
+
           <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-xs">
-            <span className="text-gray-500 font-medium">Live Kitchen Status:</span>
+            <span className="text-gray-500 font-medium">Live Status:</span>
             <span
-              className={`px-2.5 py-0.5 rounded-full font-bold text-[11px] border flex items-center gap-1 ${badge.color}`}
+              className={`px-2.5 py-1 rounded-full font-bold text-[11px] border flex items-center gap-1 ${badge.color}`}
             >
               <span>{badge.icon}</span> {badge.label}
             </span>

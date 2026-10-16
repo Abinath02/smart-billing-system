@@ -87,6 +87,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </div>
         </div>
 
+        {/* Responsible Server / Waiter Badge */}
+        <div className="mt-2.5 flex items-center justify-between p-2 rounded-xl bg-amber-50/80 border border-amber-200/80 text-xs">
+          <span className="text-amber-800 font-bold uppercase text-[10px] tracking-wider">
+            Responsible Server:
+          </span>
+          <span className="font-black text-amber-950 flex items-center gap-1">
+            <span>🤵</span>
+            <span>
+              {order.waiter?.name || 'Assigned Waiter'} {order.waiter?.emp_code ? `(${order.waiter.emp_code})` : ''}
+            </span>
+          </span>
+        </div>
+
         {/* Live Preparation SLA Countdown Bar */}
         <div className="mt-3 p-2.5 rounded-2xl bg-gray-50 border border-gray-100 space-y-1.5">
           <div className="flex items-center justify-between text-[11px] font-bold">

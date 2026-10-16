@@ -357,9 +357,14 @@ export const KitchenDashboard: React.FC = () => {
     setCurrentUser(null);
   };
 
-  // Filter orders
+  // Filter orders: ONLY orders approved by a floor waiter go to the chef cooking queue
   const activeKitchenOrders = orders.filter(
-    (o) => o.status === 'pending' || o.status === 'cooking'
+    (o) => (o.status === 'pending' || o.status === 'cooking') && Boolean(o.waiter_id)
+  );
+
+  // Orders awaiting floor server desk visit & table confirmation
+  const awaitingWaiterOrders = orders.filter(
+    (o) => !o.waiter_id && o.status !== 'paid' && o.status !== 'cancelled'
   );
 
   const readyOrders = orders.filter((o) => o.status === 'ready');
@@ -498,6 +503,14 @@ export const KitchenDashboard: React.FC = () => {
                 {soundEnabled ? '🔔' : '🔕'}
               </button>
 
+              <a
+                href="/waiter"
+                target="_blank"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 transition"
+              >
+                <span>🤵</span> Waiter POS ↗
+              </a>
+
               <button
                 onClick={() => setIsAddWaiterModalOpen(true)}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1"
@@ -520,6 +533,31 @@ export const KitchenDashboard: React.FC = () => {
           {/* TAB 1: LIVE ORDERS (Auto-refreshes every 5 seconds) */}
           {activeTab === 'orders' && (
             <div>
+              {/* Notice Banner if any customer table orders are awaiting waiter confirmation */}
+              {awaitingWaiterOrders.length > 0 && (
+                <div className="mb-4 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs text-amber-950 shadow-sm animate-pulse">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl">⏳</span>
+                    <div>
+                      <span className="font-black text-amber-900 block text-xs">
+                        {awaitingWaiterOrders.length} Table Order(s) Awaiting Waiter Desk Confirmation
+                      </span>
+                      <span className="text-amber-800 text-[11px]">
+                        Placed by guests at tables ({awaitingWaiterOrders.map((o) => `Table ${o.table_no}`).join(', ')}). Floor servers must confirm at the table before chef preparation starts.
+                      </span>
+                    </div>
+                  </div>
+                  <a
+                    href="/waiter"
+                    target="_blank"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition shadow flex items-center gap-1"
+                  >
+                    <span>Open Waiter Floor POS</span>
+                    <span>↗</span>
+                  </a>
+                </div>
+              )}
+
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -529,7 +567,7 @@ export const KitchenDashboard: React.FC = () => {
                     </span>
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Live orders from customer QR menu refresh automatically every 5 seconds.
+                    Live orders approved by floor waiters ready for chef cooking.
                   </p>
                 </div>
                 <button
