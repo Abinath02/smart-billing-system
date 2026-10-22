@@ -86,41 +86,53 @@ export const WaiterDashboard: React.FC = () => {
     }
   }, []);
 
-  // 1. Auth Guard Check on Mount & Navigation (with bfcache protection)
+  // 1. Auth Guard Check on Mount & Navigation: Persist Waiter Session Across Refreshes
   useEffect(() => {
     const checkAuth = async () => {
-      setAuthChecking(true);
-      try {
-        if (typeof window !== 'undefined') {
-          const stored = localStorage.getItem('active_waiter');
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored) as Waiter;
-              if (parsed && parsed.id) {
-                // Verify with database that waiter is still active in waiters table
-                const { data: dbWaiter } = await supabase
-                  .from('waiters')
-                  .select('*')
-                  .eq('id', parsed.id)
-                  .single();
+      // Step A: Immediately check localStorage so page refresh never logs out the floor waiter
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('active_waiter');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored) as Waiter;
+            if (parsed && parsed.id && parsed.name) {
+              setCurrentWaiter(parsed);
+              setAuthChecking(false);
 
-                if (dbWaiter && dbWaiter.is_active !== false) {
-                  setCurrentWaiter(dbWaiter as Waiter);
-                  setAuthChecking(false);
-                  return;
-                } else {
-                  // Waiter was deleted or deactivated in database: remove from localStorage
-                  localStorage.removeItem('active_waiter');
+              // Background check: only if admin explicitly deactivated the waiter in database, log out
+              (async () => {
+                try {
+                  const { data: dbWaiter } = await supabase
+                    .from('waiters')
+                    .select('*')
+                    .eq('id', parsed.id)
+                    .single();
+
+                  if (dbWaiter) {
+                    if (dbWaiter.is_active === false) {
+                      localStorage.removeItem('active_waiter');
+                      setCurrentWaiter(null);
+                    } else {
+                      setCurrentWaiter(dbWaiter as Waiter);
+                      localStorage.setItem('active_waiter', JSON.stringify(dbWaiter));
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Background waiter sync notice:', e);
                 }
-              }
-            } catch (e) {
-              console.warn('Invalid stored waiter data:', e);
-              localStorage.removeItem('active_waiter');
+              })();
+
+              return;
             }
+          } catch (e) {
+            console.warn('Invalid stored waiter data:', e);
           }
         }
+      }
 
-        // Check Supabase session fallback: ONLY 'waiter' role allowed
+      setAuthChecking(true);
+      try {
+        // Step B: Check Supabase session fallback (for email/password waiter login)
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -142,15 +154,28 @@ export const WaiterDashboard: React.FC = () => {
           }
 
           if (profile && profile.role === 'waiter' && profile.is_active !== false) {
-            // Fetch waiter table entry strictly from database
-            const { data: wRecord } = await supabase
+            // Find matching waiter record
+            let { data: matchingWaiter } = await supabase
               .from('waiters')
               .select('*')
               .eq('id', profile.id)
               .single();
 
-            if (wRecord && wRecord.is_active !== false) {
-              setCurrentWaiter(wRecord as Waiter);
+            if (!matchingWaiter) {
+              const { data: byName } = await supabase
+                .from('waiters')
+                .select('*')
+                .eq('name', profile.full_name)
+                .eq('is_active', true)
+                .limit(1);
+              if (byName && byName.length > 0) matchingWaiter = byName[0];
+            }
+
+            if (matchingWaiter && matchingWaiter.is_active !== false) {
+              setCurrentWaiter(matchingWaiter as Waiter);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('active_waiter', JSON.stringify(matchingWaiter));
+              }
               setAuthChecking(false);
               return;
             }
@@ -179,12 +204,25 @@ export const WaiterDashboard: React.FC = () => {
       checkAuth();
     };
 
+    // ONLY clear user when explicit SIGNED_OUT event fires
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('active_waiter');
+        }
+        setCurrentWaiter(null);
+      }
+    });
+
     window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('popstate', handlePopState);
 
     return () => {
       window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('popstate', handlePopState);
+      subscription.unsubscribe();
     };
   }, []);
 

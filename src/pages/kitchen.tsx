@@ -81,10 +81,25 @@ export const KitchenDashboard: React.FC = () => {
     }
   }, []);
 
-  // 1. Strict Authentication Check on Mount & History Navigation
+  // 1. Strict Authentication Check on Mount & History Navigation: Persist Session Across Refreshes
   useEffect(() => {
+    // Step A: Immediately restore from localStorage so page refresh never logs out kitchen staff
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('active_kitchen_profile');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as Profile;
+          if (parsed && parsed.id && parsed.role === 'kitchen') {
+            setCurrentUser(parsed);
+            setAuthChecking(false);
+          }
+        } catch (e) {
+          console.warn('Invalid stored kitchen profile:', e);
+        }
+      }
+    }
+
     const checkAuth = async () => {
-      setAuthChecking(true);
       try {
         const {
           data: { session },
@@ -108,15 +123,24 @@ export const KitchenDashboard: React.FC = () => {
 
           if (profile && profile.role === 'kitchen' && profile.is_active !== false) {
             setCurrentUser(profile as Profile);
-          } else {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('active_kitchen_profile', JSON.stringify(profile));
+            }
+          } else if (profile && profile.is_active === false) {
+            // Account deactivated
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('active_kitchen_profile');
+            }
             setCurrentUser(null);
           }
         } else {
-          setCurrentUser(null);
+          // Only clear if there is no active stored profile in localStorage
+          if (typeof window !== 'undefined' && !localStorage.getItem('active_kitchen_profile')) {
+            setCurrentUser(null);
+          }
         }
       } catch (err) {
         console.error('Kitchen auth check failed:', err);
-        setCurrentUser(null);
       } finally {
         setAuthChecking(false);
       }
@@ -135,10 +159,14 @@ export const KitchenDashboard: React.FC = () => {
       checkAuth();
     };
 
+    // ONLY clear user when explicit SIGNED_OUT event fires
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('active_kitchen_profile');
+        }
         setCurrentUser(null);
       }
     });
@@ -357,6 +385,7 @@ export const KitchenDashboard: React.FC = () => {
     }
     if (typeof window !== 'undefined') {
       try {
+        localStorage.removeItem('active_kitchen_profile');
         Object.keys(localStorage).forEach((key) => {
           if (key.startsWith('sb-') || key.includes('supabase')) {
             localStorage.removeItem(key);
@@ -399,7 +428,16 @@ export const KitchenDashboard: React.FC = () => {
 
   // Auth Guard Gate
   if (!currentUser) {
-    return <KitchenLogin onLoginSuccess={(profile) => setCurrentUser(profile)} />;
+    return (
+      <KitchenLogin
+        onLoginSuccess={(profile) => {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('active_kitchen_profile', JSON.stringify(profile));
+          }
+          setCurrentUser(profile);
+        }}
+      />
+    );
   }
 
   return (

@@ -80,6 +80,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
           throw new Error('Your administrator account is currently inactive.');
         }
 
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('active_admin_profile', JSON.stringify(profile));
+        }
+
         onLoginSuccess(profile as Profile);
       }
     } catch (err: any) {

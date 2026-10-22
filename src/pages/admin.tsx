@@ -55,10 +55,25 @@ export const AdminDashboard: React.FC = () => {
   const [copiedTable, setCopiedTable] = useState<string | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
-  // 1. Strict Auth Guard Check on Mount & Navigation
+  // 1. Strict Auth Guard Check on Mount & Navigation: Persist Admin Session Across Refreshes
   useEffect(() => {
+    // Step A: Immediately restore from localStorage so page refresh never logs out admin
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('active_admin_profile');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as Profile;
+          if (parsed && parsed.id && parsed.role === 'admin') {
+            setCurrentUser(parsed);
+            setAuthChecking(false);
+          }
+        } catch (e) {
+          console.warn('Invalid stored admin profile:', e);
+        }
+      }
+    }
+
     const checkAuth = async () => {
-      setAuthChecking(true);
       try {
         const {
           data: { session },
@@ -82,15 +97,22 @@ export const AdminDashboard: React.FC = () => {
 
           if (profile && profile.role === 'admin' && profile.is_active !== false) {
             setCurrentUser(profile as Profile);
-          } else {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('active_admin_profile', JSON.stringify(profile));
+            }
+          } else if (profile && profile.is_active === false) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('active_admin_profile');
+            }
             setCurrentUser(null);
           }
         } else {
-          setCurrentUser(null);
+          if (typeof window !== 'undefined' && !localStorage.getItem('active_admin_profile')) {
+            setCurrentUser(null);
+          }
         }
       } catch (err) {
         console.error('Admin auth check failed:', err);
-        setCurrentUser(null);
       } finally {
         setAuthChecking(false);
       }
@@ -109,10 +131,14 @@ export const AdminDashboard: React.FC = () => {
       checkAuth();
     };
 
+    // ONLY clear user when explicit SIGNED_OUT event fires
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('active_admin_profile');
+        }
         setCurrentUser(null);
       }
     });
@@ -195,6 +221,7 @@ export const AdminDashboard: React.FC = () => {
     }
     if (typeof window !== 'undefined') {
       try {
+        localStorage.removeItem('active_admin_profile');
         Object.keys(localStorage).forEach((key) => {
           if (key.startsWith('sb-') || key.includes('supabase')) {
             localStorage.removeItem(key);
@@ -294,7 +321,16 @@ export const AdminDashboard: React.FC = () => {
 
   // Auth Guard Gate
   if (!currentUser) {
-    return <AdminLogin onLoginSuccess={(profile) => setCurrentUser(profile)} />;
+    return (
+      <AdminLogin
+        onLoginSuccess={(profile) => {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('active_admin_profile', JSON.stringify(profile));
+          }
+          setCurrentUser(profile);
+        }}
+      />
+    );
   }
 
   return (

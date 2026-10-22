@@ -49,10 +49,25 @@ export const CashierDashboard: React.FC = () => {
   const restaurantVpa = process.env.NEXT_PUBLIC_RESTAURANT_UPI_VPA || 'spicegarden@upi';
   const restaurantName = process.env.NEXT_PUBLIC_RESTAURANT_NAME || 'Spice Garden';
 
-  // 1. Auth Guard Check on Mount & Navigation: ONLY 'cashier' role allowed
+  // 1. Auth Guard Check on Mount & Navigation: Persist Cashier Session Across Refreshes
   useEffect(() => {
+    // Step A: Immediately restore from localStorage so page refresh never logs out cashier
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('active_cashier_profile');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored) as Profile;
+          if (parsed && parsed.id && parsed.role === 'cashier') {
+            setCurrentUser(parsed);
+            setAuthChecking(false);
+          }
+        } catch (e) {
+          console.warn('Invalid stored cashier profile:', e);
+        }
+      }
+    }
+
     const checkAuth = async () => {
-      setAuthChecking(true);
       try {
         const {
           data: { session },
@@ -76,15 +91,22 @@ export const CashierDashboard: React.FC = () => {
 
           if (profile && profile.role === 'cashier' && profile.is_active !== false) {
             setCurrentUser(profile as Profile);
-          } else {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('active_cashier_profile', JSON.stringify(profile));
+            }
+          } else if (profile && profile.is_active === false) {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('active_cashier_profile');
+            }
             setCurrentUser(null);
           }
         } else {
-          setCurrentUser(null);
+          if (typeof window !== 'undefined' && !localStorage.getItem('active_cashier_profile')) {
+            setCurrentUser(null);
+          }
         }
       } catch (err) {
         console.error('Cashier auth check failed:', err);
-        setCurrentUser(null);
       } finally {
         setAuthChecking(false);
       }
@@ -103,10 +125,14 @@ export const CashierDashboard: React.FC = () => {
       checkAuth();
     };
 
+    // ONLY clear user when explicit SIGNED_OUT event fires
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('active_cashier_profile');
+        }
         setCurrentUser(null);
       }
     });
@@ -392,6 +418,7 @@ export const CashierDashboard: React.FC = () => {
     }
     if (typeof window !== 'undefined') {
       try {
+        localStorage.removeItem('active_cashier_profile');
         Object.keys(localStorage).forEach((key) => {
           if (key.startsWith('sb-') || key.includes('supabase')) {
             localStorage.removeItem(key);
@@ -418,7 +445,16 @@ export const CashierDashboard: React.FC = () => {
 
   // Auth Guard Gate
   if (!currentUser) {
-    return <CashierLogin onLoginSuccess={(profile) => setCurrentUser(profile)} />;
+    return (
+      <CashierLogin
+        onLoginSuccess={(profile) => {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('active_cashier_profile', JSON.stringify(profile));
+          }
+          setCurrentUser(profile);
+        }}
+      />
+    );
   }
 
   return (

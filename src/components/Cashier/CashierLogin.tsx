@@ -85,6 +85,10 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
         );
       }
 
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('active_cashier_profile', JSON.stringify(profile));
+      }
+
       onLoginSuccess(profile as Profile);
     } catch (err: any) {
       console.error('Cashier auth error:', err);

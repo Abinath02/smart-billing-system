@@ -85,6 +85,10 @@ export const KitchenLogin: React.FC<KitchenLoginProps> = ({ onLoginSuccess }) =>
         );
       }
 
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('active_kitchen_profile', JSON.stringify(profile));
+      }
+
       onLoginSuccess(profile as Profile);
     } catch (err: any) {
       console.error('Kitchen auth error:', err);
