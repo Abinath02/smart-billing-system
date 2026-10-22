@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { checkRateLimit } from '../../../lib/rateLimit';
 
 export default async function handler(
   req: NextApiRequest,
@@ -6,6 +7,11 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  // Rate Limiting: 30 invoice dispatches per minute per IP
+  if (!checkRateLimit(req, res, { limit: 30, windowMs: 60 * 1000, keyPrefix: 'notify_invoice' })) {
+    return;
   }
 
   const { order, email, phone, pdfDataUri } = req.body;

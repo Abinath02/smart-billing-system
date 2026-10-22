@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { supabase as defaultClient } from '../../../lib/supabaseClient';
 import { UserRole } from '../../../types/database.types';
+import { checkRateLimit } from '../../../lib/rateLimit';
 
 export default async function handler(
   req: NextApiRequest,
@@ -9,6 +10,11 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  // Rate Limiting: 10 user creation requests per minute per IP
+  if (!checkRateLimit(req, res, { limit: 10, windowMs: 60 * 1000, keyPrefix: 'admin_create_user' })) {
+    return;
   }
 
   const { email, password, fullName, role, phone } = req.body;

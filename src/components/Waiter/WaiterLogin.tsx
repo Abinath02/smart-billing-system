@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { Waiter } from '../../types/database.types';
-import { WaiterIcon, LockIcon, AlertIcon, ArrowRightIcon, KeyIcon } from '../common/Icons';
+import { WaiterIcon, LockIcon, AlertIcon, ArrowRightIcon, KeyIcon, EyeIcon, EyeOffIcon } from '../common/Icons';
 
 interface WaiterLoginProps {
   onLoginSuccess: (waiter: Waiter) => void;
@@ -15,6 +15,7 @@ export const WaiterLogin: React.FC<WaiterLoginProps> = ({ onLoginSuccess }) => {
   // Credentials State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Code / Select State
   const [waiters, setWaiters] = useState<Waiter[]>([]);
@@ -56,12 +57,24 @@ export const WaiterLogin: React.FC<WaiterLoginProps> = ({ onLoginSuccess }) => {
   const handleCredentialsAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      setError('Please enter a valid waiter email address.');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       // 1. Authenticate with Supabase Auth
       const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: cleanEmail,
         password: password,
       });
 
@@ -280,14 +293,24 @@ export const WaiterLogin: React.FC<WaiterLoginProps> = ({ onLoginSuccess }) => {
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Password
               </label>
-              <input
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-3.5 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 pr-10 bg-slate-800 border border-slate-700 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3 text-slate-400 hover:text-white transition"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button

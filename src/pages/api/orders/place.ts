@@ -7,6 +7,7 @@ import {
   validateCustomerName,
   validateTableNumber,
 } from '../../../utils/validation';
+import { checkRateLimit } from '../../../lib/rateLimit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -42,6 +43,11 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  // Rate Limiting: 20 order placements per minute per IP
+  if (!checkRateLimit(req, res, { limit: 20, windowMs: 60 * 1000, keyPrefix: 'orders_place' })) {
+    return;
   }
 
   const {

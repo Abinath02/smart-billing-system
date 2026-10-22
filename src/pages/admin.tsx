@@ -26,8 +26,17 @@ import {
   RefreshIcon,
   ArrowRightIcon,
 } from '../components/common/Icons';
+import { DatabaseBackupTab } from '../components/Admin/DatabaseBackupTab';
 
-type AdminTab = 'overview' | 'menu' | 'inventory' | 'users' | 'offers' | 'history' | 'qrcodes';
+type AdminTab =
+  | 'overview'
+  | 'menu'
+  | 'inventory'
+  | 'users'
+  | 'offers'
+  | 'history'
+  | 'qrcodes'
+  | 'backups';
 
 export const AdminDashboard: React.FC = () => {
   // Auth state
@@ -430,6 +439,21 @@ export const AdminDashboard: React.FC = () => {
                 <QrCodeIcon className="w-4 h-4" />
                 <span>Table QR Codes</span>
               </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('backups');
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition ${
+                  activeTab === 'backups'
+                    ? 'bg-amber-500 text-slate-950 shadow-md'
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <ShieldIcon className="w-4 h-4" />
+                <span>Data &amp; Backups</span>
+              </button>
             </nav>
           </div>
 
@@ -521,6 +545,7 @@ export const AdminDashboard: React.FC = () => {
                   {activeTab === 'offers' && 'Offers & Poster Promotions'}
                   {activeTab === 'history' && 'Order History & GST Tax Audit'}
                   {activeTab === 'qrcodes' && 'Dine-In Table QR Codes'}
+                  {activeTab === 'backups' && 'Database Backups & Data Security'}
                 </h1>
                 <p className="text-xs text-slate-400">
                   {new Date().toLocaleDateString('en-IN', {
@@ -775,6 +800,9 @@ export const AdminDashboard: React.FC = () => {
 
                 {/* TAB 5: TABLE MANAGEMENT & DYNAMIC QR CARDS */}
                 {activeTab === 'qrcodes' && <TableManagementTab />}
+
+                {/* TAB 6: DATABASE BACKUPS & SECURITY */}
+                {activeTab === 'backups' && <DatabaseBackupTab />}
               </>
             )}
           </main>

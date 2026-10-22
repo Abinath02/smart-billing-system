@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { checkRateLimit } from '../../../lib/rateLimit';
 
 export interface LowStockAlertPayload {
   itemName: string;
@@ -17,6 +18,11 @@ export default async function handler(
 ) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  // Rate Limiting: 10 low-stock alert dispatches per minute per IP
+  if (!checkRateLimit(req, res, { limit: 10, windowMs: 60 * 1000, keyPrefix: 'notify_low_stock' })) {
+    return;
   }
 
   const {
