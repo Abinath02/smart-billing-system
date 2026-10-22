@@ -27,6 +27,7 @@ import {
   ArrowRightIcon,
 } from '../components/common/Icons';
 import { DatabaseBackupTab } from '../components/Admin/DatabaseBackupTab';
+import { OnboardingModal } from '../components/common/OnboardingModal';
 
 type AdminTab =
   | 'overview'
@@ -52,6 +53,7 @@ export const AdminDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [copiedTable, setCopiedTable] = useState<string | null>(null);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   // 1. Strict Auth Guard Check on Mount & Navigation
   useEffect(() => {
@@ -558,7 +560,16 @@ export const AdminDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2.5">
+              <button
+                onClick={() => setIsOnboardingOpen(true)}
+                className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
+                title="Launch Onboarding Tour & Workflow Guide"
+              >
+                <ShieldIcon className="w-3.5 h-3.5 text-amber-600" />
+                <span className="hidden sm:inline">Quick Tour</span>
+              </button>
+
               <button
                 onClick={fetchAllData}
                 className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition"
@@ -721,7 +732,7 @@ export const AdminDashboard: React.FC = () => {
                     </div>
 
                     <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-                      <table className="w-full text-left text-xs">
+                      <table className="w-full text-left text-xs min-w-[850px]">
                         <thead className="bg-slate-50 text-slate-400 uppercase text-[10px] font-black border-b border-slate-100">
                           <tr>
                             <th className="py-3 px-4">Bill No</th>
@@ -808,6 +819,12 @@ export const AdminDashboard: React.FC = () => {
           </main>
         </div>
       </div>
+
+      {/* Onboarding Guide Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+      />
     </>
   );
 };

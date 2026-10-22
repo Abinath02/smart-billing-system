@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabaseClient';
 import { MenuItem, Offer, Order } from '../types/database.types';
@@ -193,7 +194,17 @@ export const CustomerMenuPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 pb-28">
+    <>
+      <Head>
+        <title>Spice Garden | Dine-In Smart QR Menu &amp; Ordering</title>
+        <meta
+          name="description"
+          content="Browse dishes, enjoy exclusive table offers, and order seamlessly from your phone with Spice Garden Dine-In Smart Menu."
+        />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+      </Head>
+
+      <div className="min-h-screen bg-gray-50 text-gray-800 pb-28">
       {/* Header Banner */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
@@ -386,6 +397,7 @@ export const CustomerMenuPage: React.FC = () => {
         />
       )}
     </div>
+    </>
   );
 };
 

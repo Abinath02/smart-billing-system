@@ -359,8 +359,8 @@ export const AdminInventoryManagement: React.FC = () => {
       </div>
 
       {/* Raw Materials Inventory Table */}
-      <div className="border border-slate-100 rounded-2xl overflow-hidden">
-        <table className="w-full text-left text-xs">
+      <div className="border border-slate-100 rounded-2xl overflow-x-auto">
+        <table className="w-full text-left text-xs min-w-[650px]">
           <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] font-extrabold border-b border-slate-100">
             <tr>
               <th className="py-3 px-4">Raw Material Name</th>
