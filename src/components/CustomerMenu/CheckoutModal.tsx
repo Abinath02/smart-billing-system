@@ -4,6 +4,14 @@ import { CartItem, CustomerDetails } from '../../types/cart.types';
 import { Order } from '../../types/database.types';
 import { formatRs } from '../../utils/currency';
 import {
+  AlertIcon,
+  CheckIcon,
+  UtensilsIcon,
+  LockIcon,
+  ArrowRightIcon,
+  PhoneIcon,
+} from '../common/Icons';
+import {
   validateSriLankanPhone,
   validateEmail,
   validateCustomerName,
@@ -248,7 +256,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5">
           {errorMessage && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl flex items-center gap-2">
-              <span>⚠️</span>
+              <AlertIcon className="w-4 h-4 text-red-600 flex-shrink-0" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -258,7 +266,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🍲</span>
+                  <UtensilsIcon className="w-4 h-4 text-amber-700" />
                   <div>
                     <h5 className="text-xs font-black text-amber-950">
                       Active Table Session Detected!
@@ -343,8 +351,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     Table No <span className="text-red-500">*</span>
                   </label>
                   {isTableLocked && (
-                    <span className="text-[10px] text-green-700 font-extrabold flex items-center gap-0.5">
-                      <span>🔒</span> QR Locked
+                    <span className="text-[10px] text-green-700 font-extrabold flex items-center gap-1">
+                      <LockIcon className="w-3 h-3 text-green-700" /> QR Locked
                     </span>
                   )}
                 </div>
@@ -419,8 +427,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 Phone Number (WhatsApp Bill) <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
-                <span className="absolute left-3.5 top-2.5 text-xs text-gray-700 font-black flex items-center gap-1">
-                  <span>🇱🇰</span> +94
+                <span className="absolute left-3.5 top-3 text-xs text-gray-700 font-bold flex items-center gap-1">
+                  <PhoneIcon className="w-3.5 h-3.5 text-gray-500" /> +94
                 </span>
                 <input
                   type="tel"
@@ -441,10 +449,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 />
               </div>
               {touched.customerPhone && phoneValidation && !phoneValidation.isValid ? (
-                <p className="text-[10px] text-red-600 mt-1 font-semibold">⚠️ {phoneValidation.error}</p>
+                <p className="text-[10px] text-red-600 mt-1 font-semibold flex items-center gap-1">
+                  <AlertIcon className="w-3 h-3 text-red-600" />
+                  <span>{phoneValidation.error}</span>
+                </p>
               ) : phoneValidation?.isValid ? (
-                <p className="text-[10px] text-green-700 mt-1 font-bold">
-                  ✅ Valid Sri Lankan number ({phoneValidation.formatted})
+                <p className="text-[10px] text-green-700 mt-1 font-bold flex items-center gap-1">
+                  <CheckIcon className="w-3 h-3 text-green-700" />
+                  <span>Valid Sri Lankan number ({phoneValidation.formatted})</span>
                 </p>
               ) : (
                 <span className="text-[10px] text-gray-500 mt-1 block">
@@ -475,9 +487,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 }`}
               />
               {touched.customerEmail && emailValidation && !emailValidation.isValid ? (
-                <p className="text-[10px] text-red-600 mt-1 font-semibold">⚠️ {emailValidation.error}</p>
+                <p className="text-[10px] text-red-600 mt-1 font-semibold flex items-center gap-1">
+                  <AlertIcon className="w-3 h-3 text-red-600" />
+                  <span>{emailValidation.error}</span>
+                </p>
               ) : emailValidation?.isValid ? (
-                <p className="text-[10px] text-green-700 mt-1 font-bold">✅ Valid email address</p>
+                <p className="text-[10px] text-green-700 mt-1 font-bold flex items-center gap-1">
+                  <CheckIcon className="w-3 h-3 text-green-700" />
+                  <span>Valid email address</span>
+                </p>
               ) : null}
             </div>
 
@@ -543,12 +561,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             ) : existingOrder && appendToExisting ? (
               <>
                 <span>Add to Bill (Round 2)</span>
-                <span>➔</span>
+                <ArrowRightIcon className="w-4 h-4 ml-1" />
               </>
             ) : (
               <>
                 <span>Place Order</span>
-                <span>➔</span>
+                <ArrowRightIcon className="w-4 h-4 ml-1" />
               </>
             )}
           </button>

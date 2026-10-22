@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Order, MenuItem } from '../../types/database.types';
+import { BarChartIcon } from '../common/Icons';
 import {
   AreaChart,
   Area,
@@ -201,7 +202,7 @@ export const AnalyticsCharts: React.FC<AnalyticsChartsProps> = ({ orders, menuIt
 
         {categoryData.length === 0 ? (
           <div className="my-auto py-10 text-center text-slate-400">
-            <span className="text-3xl">📊</span>
+            <BarChartIcon className="w-10 h-10 text-slate-300 mx-auto" />
             <p className="text-xs font-semibold mt-2">No category sales recorded yet</p>
             <p className="text-[10px] text-slate-400">Settled orders will generate live category shares</p>
           </div>

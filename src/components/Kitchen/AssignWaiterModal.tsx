@@ -130,7 +130,7 @@ export const AssignWaiterModal: React.FC<AssignWaiterModalProps> = ({
           </div>
 
           <div className="text-xs text-gray-500 bg-gray-50 p-3 rounded-xl">
-            💡 This will mark the order as <strong className="text-green-600">Ready</strong> and dispatch it to the dining hall.
+            This will mark the order as <strong className="text-green-600">Ready</strong> and dispatch it to the dining hall.
           </div>
         </div>
 
@@ -149,7 +149,7 @@ export const AssignWaiterModal: React.FC<AssignWaiterModalProps> = ({
             onClick={handleConfirm}
             className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold shadow-lg transition active:scale-95 flex items-center gap-1.5"
           >
-            {submitting ? 'Updating...' : 'Confirm & Mark Ready 🍽️'}
+            {submitting ? 'Updating...' : 'Confirm & Mark Ready'}
           </button>
         </div>
       </div>

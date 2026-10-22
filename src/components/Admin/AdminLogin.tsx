@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { Profile } from '../../types/database.types';
+import { ShieldIcon, LockIcon, AlertIcon, ArrowRightIcon } from '../common/Icons';
 
 interface AdminLoginProps {
   onLoginSuccess: (profile: Profile) => void;
@@ -19,7 +21,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
 
     try {
       const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: password,
       });
 
@@ -48,19 +50,20 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
           console.error('Admin profile lookup failed:', profileErr);
           await supabase.auth.signOut();
           throw new Error(
-            profileErr?.message ||
-            'No administrator profile found in database. Administrator privileges required.'
+            'No administrator profile found for this account. Administrator access is required.'
           );
         }
 
         if (profile.role !== 'admin') {
           await supabase.auth.signOut();
-          throw new Error(`Access denied. Found role "${profile.role}", but Administrator role is required.`);
+          throw new Error(
+            `Access restricted: The Admin Dashboard is strictly for administrators. Your account role is "${profile.role}". Please sign in at your designated portal.`
+          );
         }
 
         if (profile.is_active === false) {
           await supabase.auth.signOut();
-          throw new Error('Administrator account is currently inactive.');
+          throw new Error('Your administrator account is currently inactive.');
         }
 
         onLoginSuccess(profile as Profile);
@@ -77,27 +80,27 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-white">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
-            👑
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <ShieldIcon className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-white">
-            Admin Management Portal
+          <h2 className="text-2xl font-bold tracking-tight text-white">
+            Admin Portal
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Authorized Executive Access Only
+            Executive Management &amp; Configuration Access
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-950/60 border border-red-800/80 text-red-300 text-xs font-semibold rounded-xl flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
+          <div className="mb-4 p-3 bg-red-950/60 border border-red-800/80 text-red-300 text-xs font-semibold rounded-xl flex items-start gap-2.5">
+            <AlertIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
+            <span className="leading-relaxed">{error}</span>
           </div>
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Admin Email
             </label>
             <input
@@ -111,12 +114,12 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Password
             </label>
             <input
               type="password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -127,18 +130,42 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ onLoginSuccess }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? 'Verifying...' : 'Unlock Admin Portal ➔'}
+            {loading ? (
+              <span>Verifying Credentials...</span>
+            ) : (
+              <>
+                <span>Sign In to Admin Portal</span>
+                <ArrowRightIcon className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 
-        <div className="mt-6 pt-4 border-t border-slate-800/80 text-center">
-          <p className="text-[11px] text-slate-500">
-            🔒 Protected System: Staff accounts must be provisioned by Master Admin.
-          </p>
+        <div className="mt-6 pt-5 border-t border-slate-800 text-center space-y-3">
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            <LockIcon className="w-3.5 h-3.5" />
+            <span>Role-Restricted Access: Administrator accounts only.</span>
+          </div>
+
+          <div className="pt-2 flex items-center justify-center gap-4 text-xs font-medium text-slate-400">
+            <Link href="/cashier" className="hover:text-amber-400 transition">
+              Cashier POS
+            </Link>
+            <span className="text-slate-700">•</span>
+            <Link href="/kitchen" className="hover:text-amber-400 transition">
+              Kitchen KDS
+            </Link>
+            <span className="text-slate-700">•</span>
+            <Link href="/waiter" className="hover:text-amber-400 transition">
+              Waiter Portal
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+export default AdminLogin;

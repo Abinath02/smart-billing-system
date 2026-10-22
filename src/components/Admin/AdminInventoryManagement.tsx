@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { InventoryItem, InventoryLog } from '../../types/database.types';
+import { BoxIcon, AlertIcon, SearchIcon, MailIcon, RefreshIcon, PlusIcon, CheckIcon } from '../common/Icons';
 
 const DEFAULT_INVENTORY_ITEMS: InventoryItem[] = [
   { id: '10000000-0000-0000-0000-000000000001', name: 'Basmati Rice', category: 'Grains & Staples', quantity: 35.0, unit: 'kg', min_threshold: 10.0, cost_per_unit: 95, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
@@ -109,14 +110,14 @@ export const AdminInventoryManagement: React.FC = () => {
       const data = await res.json();
       if (res.ok && data.success) {
         setAlertFeedback(
-          `✅ Test alert processed successfully! Dispatched notification to ${adminEmail}.`
+          `Test alert processed successfully! Dispatched notification to ${adminEmail}.`
         );
       } else {
         throw new Error(data.error || 'Failed to dispatch alert.');
       }
     } catch (err: any) {
       console.error('Error testing alert:', err);
-      setAlertFeedback(`⚠️ Alert test error: ${err.message}`);
+      setAlertFeedback(`Alert test error: ${err.message}`);
     } finally {
       setTestingAlert(false);
     }
@@ -228,7 +229,7 @@ export const AdminInventoryManagement: React.FC = () => {
         )
       );
 
-      setAlertFeedback(`✅ Restocked ${addQty} ${restockItem.unit} of ${restockItem.name}! New stock: ${newQty} ${restockItem.unit}`);
+      setAlertFeedback(`Restocked ${addQty} ${restockItem.unit} of ${restockItem.name}! New stock: ${newQty} ${restockItem.unit}`);
       setRestockItem(null);
       setRestockQty('');
       setRestockNotes('');
@@ -264,7 +265,7 @@ export const AdminInventoryManagement: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>📦</span> Raw Materials & Store Inventory (மூலப்பொருட்கள் இருப்பு மேலாண்மை)
+            <BoxIcon className="w-5 h-5 text-orange-600" /> Raw Materials & Store Inventory
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Monitor raw materials (Rice, Bun, Salt, Oil, etc.). When quantities drop below safety limits, email alerts are dispatched to Admin.
@@ -278,14 +279,14 @@ export const AdminInventoryManagement: React.FC = () => {
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition flex items-center gap-1.5"
             title="Test low stock email alert dispatch"
           >
-            <span>📧</span> {testingAlert ? 'Sending Test...' : 'Test Alert Email'}
+            <MailIcon className="w-3.5 h-3.5 text-slate-600" /> {testingAlert ? 'Sending Test...' : 'Test Alert Email'}
           </button>
 
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5"
           >
-            <span>+ Add Raw Material</span>
+            <PlusIcon className="w-4 h-4" /> Add Raw Material
           </button>
         </div>
       </div>
@@ -293,8 +294,8 @@ export const AdminInventoryManagement: React.FC = () => {
       {/* Admin Alert Configuration Card */}
       <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 to-slate-800 text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center text-xl">
-            🚨
+          <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center">
+            <AlertIcon className="w-5 h-5 text-red-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -320,7 +321,7 @@ export const AdminInventoryManagement: React.FC = () => {
             className="p-2 bg-slate-800 hover:bg-slate-700 rounded-xl border border-slate-700 text-xs text-slate-300"
             title="Refresh Stock List"
           >
-            🔄
+            <RefreshIcon className="w-4 h-4 text-slate-300" />
           </button>
         </div>
       </div>
@@ -328,7 +329,9 @@ export const AdminInventoryManagement: React.FC = () => {
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-80">
-          <span className="absolute left-3.5 top-2.5 text-slate-400 text-xs">🔍</span>
+          <span className="absolute left-3.5 top-2.5 text-slate-400">
+            <SearchIcon className="w-4 h-4" />
+          </span>
           <input
             type="text"
             placeholder="Search Rice, Bun, Salt, Chicken, Oil..."
@@ -403,11 +406,11 @@ export const AdminInventoryManagement: React.FC = () => {
                   <td className="py-3 px-3">
                     {isLow ? (
                       <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200 animate-pulse inline-flex items-center gap-1">
-                        <span>⚠️ LOW STOCK</span>
+                        <AlertIcon className="w-3 h-3 text-red-700" /> LOW STOCK
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 inline-flex items-center gap-1">
-                        <span>✓ Sufficient</span>
+                        <CheckIcon className="w-3 h-3 text-green-700" /> Sufficient
                       </span>
                     )}
                   </td>
@@ -418,9 +421,9 @@ export const AdminInventoryManagement: React.FC = () => {
                         setRestockQty('');
                         setRestockNotes('');
                       }}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95"
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm active:scale-95 flex items-center gap-1 mx-auto"
                     >
-                      ➕ Restock / Refill
+                      <PlusIcon className="w-3.5 h-3.5" /> Restock / Refill
                     </button>
                   </td>
                 </tr>
@@ -436,7 +439,9 @@ export const AdminInventoryManagement: React.FC = () => {
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 animate-scale-in">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="text-2xl">📦</span>
+                <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600">
+                  <BoxIcon className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900">Restock Raw Material</h3>
                   <p className="text-xs text-slate-500">Add purchased stock to store inventory</p>
@@ -499,7 +504,7 @@ export const AdminInventoryManagement: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Supplier / Purchase Note (விற்பனையாளர் குறிப்பு)
+                  Supplier / Purchase Note
                 </label>
                 <input
                   type="text"
@@ -523,7 +528,7 @@ export const AdminInventoryManagement: React.FC = () => {
                   disabled={restocking}
                   className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95 disabled:opacity-50"
                 >
-                  {restocking ? 'Updating...' : 'Confirm Restock ➔'}
+                  {restocking ? 'Updating...' : 'Confirm Restock'}
                 </button>
               </div>
             </form>
@@ -537,7 +542,9 @@ export const AdminInventoryManagement: React.FC = () => {
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 animate-scale-in">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="text-2xl">🌱</span>
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600">
+                  <PlusIcon className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900">Add New Raw Material</h3>
                   <p className="text-xs text-slate-500">Register new cooking ingredient to inventory</p>
@@ -554,7 +561,7 @@ export const AdminInventoryManagement: React.FC = () => {
             <form onSubmit={handleAddNewItem} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Item Name (பொருள் பெயர்)
+                  Item Name
                 </label>
                 <input
                   type="text"
@@ -666,7 +673,7 @@ export const AdminInventoryManagement: React.FC = () => {
                   disabled={addingItem}
                   className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95 disabled:opacity-50"
                 >
-                  {addingItem ? 'Adding...' : 'Add Material ➔'}
+                  {addingItem ? 'Adding...' : 'Add Material'}
                 </button>
               </div>
             </form>
@@ -678,7 +685,7 @@ export const AdminInventoryManagement: React.FC = () => {
       {logs.length > 0 && (
         <div className="pt-4 border-t border-slate-100">
           <h4 className="text-sm font-black text-slate-900 mb-3 flex items-center gap-2">
-            <span>📋</span> Store Requisition & Kitchen Usage Audit Trail
+            <BoxIcon className="w-4 h-4 text-slate-600" /> Store Requisition & Kitchen Usage Audit Trail
           </h4>
 
           <div className="border border-slate-100 rounded-2xl overflow-hidden">

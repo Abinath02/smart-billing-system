@@ -8,6 +8,18 @@ import { AssignWaiterModal } from '../components/Kitchen/AssignWaiterModal';
 import { AddWaiterModal } from '../components/Kitchen/AddWaiterModal';
 import { MenuAvailabilityTab } from '../components/Kitchen/MenuAvailabilityTab';
 import { KitchenInventoryTab } from '../components/Kitchen/KitchenInventoryTab';
+import {
+  ChefIcon,
+  BellIcon,
+  WaiterIcon,
+  PlusIcon,
+  LogoutIcon,
+  ClockIcon,
+  RefreshIcon,
+  UtensilsIcon,
+  BoxIcon,
+  CheckIcon,
+} from '../components/common/Icons';
 
 const DEFAULT_INVENTORY_ITEMS: InventoryItem[] = [
   { id: '10000000-0000-0000-0000-000000000001', name: 'Basmati Rice', category: 'Grains & Staples', quantity: 35.0, unit: 'kg', min_threshold: 10.0, cost_per_unit: 95, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
@@ -94,7 +106,7 @@ export const KitchenDashboard: React.FC = () => {
             if (profileByEmail) profile = profileByEmail;
           }
 
-          if (profile && (profile.role === 'kitchen' || profile.role === 'admin') && profile.is_active !== false) {
+          if (profile && profile.role === 'kitchen' && profile.is_active !== false) {
             setCurrentUser(profile as Profile);
           } else {
             setCurrentUser(null);
@@ -158,10 +170,11 @@ export const KitchenDashboard: React.FC = () => {
       if (ordersErr) console.error('Orders error:', ordersErr);
       else if (ordersData) setOrders(ordersData as Order[]);
 
-      // Fetch active waiters
+      // Fetch active waiters from database
       const { data: waitersData } = await supabase
         .from('waiters')
         .select('*')
+        .eq('is_active', true)
         .order('name');
       if (waitersData) setWaiters(waitersData as Waiter[]);
 
@@ -401,8 +414,8 @@ export const KitchenDashboard: React.FC = () => {
         <header className="sticky top-0 z-40 bg-slate-900 text-white shadow-lg border-b border-slate-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-600 flex items-center justify-center text-xl shadow-md">
-                👨‍🍳
+              <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shadow-md">
+                <ChefIcon className="w-5 h-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -432,7 +445,7 @@ export const KitchenDashboard: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <span>🔥 Live Orders</span>
+                <span>Live Orders</span>
                 {activeKitchenOrders.length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-white text-orange-600 text-[10px] font-extrabold">
                     {activeKitchenOrders.length}
@@ -449,7 +462,8 @@ export const KitchenDashboard: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <span>📦 Raw Materials (இருப்பு)</span>
+                <BoxIcon className="w-3.5 h-3.5" />
+                <span>Raw Materials</span>
                 {lowStockCount > 0 ? (
                   <span className="px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[10px] font-extrabold animate-pulse">
                     {lowStockCount} Low
@@ -469,7 +483,8 @@ export const KitchenDashboard: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <span>🍽️ Ready to Serve</span>
+                <UtensilsIcon className="w-3.5 h-3.5" />
+                <span>Ready to Serve</span>
                 {readyOrders.length > 0 && (
                   <span className="px-1.5 py-0.2 rounded-full bg-slate-700 text-white text-[10px] font-extrabold">
                     {readyOrders.length}
@@ -485,7 +500,7 @@ export const KitchenDashboard: React.FC = () => {
                     : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
-                <span>🚫 Menu Toggle</span>
+                <span>Menu Availability</span>
               </button>
             </div>
 
@@ -496,33 +511,36 @@ export const KitchenDashboard: React.FC = () => {
                 title={soundEnabled ? 'Chime sound is ON' : 'Chime sound is MUTED'}
                 className={`w-9 h-9 rounded-xl border flex items-center justify-center text-sm transition ${
                   soundEnabled
-                    ? 'border-slate-700 bg-slate-800 text-yellow-400'
+                    ? 'border-slate-700 bg-slate-800 text-amber-400'
                     : 'border-slate-800 bg-slate-900 text-slate-500'
                 }`}
               >
-                {soundEnabled ? '🔔' : '🔕'}
+                <BellIcon className="w-4 h-4" />
               </button>
 
               <a
                 href="/waiter"
                 target="_blank"
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1 transition"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition"
               >
-                <span>🤵</span> Waiter POS ↗
+                <WaiterIcon className="w-3.5 h-3.5" />
+                <span>Waiter POS</span>
               </a>
 
               <button
                 onClick={() => setIsAddWaiterModalOpen(true)}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5"
               >
-                <span>+</span> Waiter
+                <PlusIcon className="w-3.5 h-3.5" />
+                <span>Add Waiter</span>
               </button>
 
               <button
                 onClick={handleLogout}
-                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition"
+                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
               >
-                Logout
+                <LogoutIcon className="w-3.5 h-3.5" />
+                <span>Logout</span>
               </button>
             </div>
           </div>
@@ -535,12 +553,12 @@ export const KitchenDashboard: React.FC = () => {
             <div>
               {/* Notice Banner if any customer table orders are awaiting waiter confirmation */}
               {awaitingWaiterOrders.length > 0 && (
-                <div className="mb-4 p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs text-amber-950 shadow-sm animate-pulse">
+                <div className="mb-4 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs text-amber-950 shadow-sm">
                   <div className="flex items-center gap-2.5">
-                    <span className="text-xl">⏳</span>
+                    <ClockIcon className="w-5 h-5 text-amber-600 flex-shrink-0" />
                     <div>
-                      <span className="font-black text-amber-900 block text-xs">
-                        {awaitingWaiterOrders.length} Table Order(s) Awaiting Waiter Desk Confirmation
+                      <span className="font-bold text-amber-900 block text-xs">
+                        {awaitingWaiterOrders.length} Table Order(s) Awaiting Waiter Confirmation
                       </span>
                       <span className="text-amber-800 text-[11px]">
                         Placed by guests at tables ({awaitingWaiterOrders.map((o) => `Table ${o.table_no}`).join(', ')}). Floor servers must confirm at the table before chef preparation starts.
@@ -550,9 +568,9 @@ export const KitchenDashboard: React.FC = () => {
                   <a
                     href="/waiter"
                     target="_blank"
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition shadow flex items-center gap-1"
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition shadow flex items-center gap-1.5"
                   >
-                    <span>Open Waiter Floor POS</span>
+                    <span>Open Waiter Floor</span>
                     <span>↗</span>
                   </a>
                 </div>
@@ -563,7 +581,7 @@ export const KitchenDashboard: React.FC = () => {
                   <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                     <span>Active Kitchen Orders</span>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                      ⚡ 5s Auto-Refresh Active
+                      Auto-Refresh Active
                     </span>
                   </h2>
                   <p className="text-xs text-slate-500">
@@ -574,7 +592,8 @@ export const KitchenDashboard: React.FC = () => {
                   onClick={() => fetchAllData(false)}
                   className="px-3 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl shadow-sm flex items-center gap-1.5 transition active:scale-95"
                 >
-                  <span>🔄</span> Refresh Now
+                  <RefreshIcon className="w-3.5 h-3.5" />
+                  <span>Refresh Now</span>
                 </button>
               </div>
 
@@ -589,14 +608,14 @@ export const KitchenDashboard: React.FC = () => {
                 </div>
               ) : activeKitchenOrders.length === 0 ? (
                 <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-12 text-center max-w-lg mx-auto my-12">
-                  <div className="text-5xl mb-3">🍳</div>
-                  <h3 className="text-lg font-bold text-slate-700">Kitchen is All Caught Up!</h3>
+                  <ChefIcon className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-bold text-slate-700">Kitchen is All Caught Up</h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                    No active cooking orders right now. Orders placed by customers will automatically show up here within 5 seconds.
+                    No active cooking orders right now. Orders placed by customers will automatically show up here.
                   </p>
                   <div className="mt-4 inline-flex items-center gap-2 text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                    <span>Monitoring live orders every 5s...</span>
+                    <span>Monitoring live orders...</span>
                   </div>
                 </div>
               ) : (
@@ -638,7 +657,7 @@ export const KitchenDashboard: React.FC = () => {
 
               {readyOrders.length === 0 ? (
                 <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center max-w-md mx-auto my-8">
-                  <div className="text-4xl mb-2">🍽️</div>
+                  <UtensilsIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                   <h3 className="text-base font-bold text-slate-700">No Orders Waiting to be Served</h3>
                   <p className="text-xs text-slate-400 mt-1">Cooked orders ready for delivery appear here.</p>
                 </div>

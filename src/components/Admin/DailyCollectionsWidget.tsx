@@ -1,6 +1,7 @@
 import React from 'react';
 import { Order } from '../../types/database.types';
 import { formatRs } from '../../utils/currency';
+import { CashIcon, TagIcon } from '../common/Icons';
 
 interface DailyCollectionsWidgetProps {
   orders: Order[];
@@ -96,8 +97,14 @@ export const DailyCollectionsWidget: React.FC<DailyCollectionsWidgetProps> = ({ 
           </span>
           <div className="mt-2 space-y-1.5">
             <div className="flex justify-between text-xs font-bold text-slate-800">
-              <span className="flex items-center gap-1">💵 Cash: {formatRs(cashRevenue)}</span>
-              <span className="flex items-center gap-1">💳 Card: {formatRs(cardRevenue)}</span>
+              <span className="flex items-center gap-1.5">
+                <CashIcon className="w-3.5 h-3.5 text-emerald-600" />
+                Cash: {formatRs(cashRevenue)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <TagIcon className="w-3.5 h-3.5 text-blue-600" />
+                Card: {formatRs(cardRevenue)}
+              </span>
             </div>
             {/* Visual Progress Bar */}
             <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">

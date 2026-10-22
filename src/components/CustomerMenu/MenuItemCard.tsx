@@ -1,5 +1,6 @@
 import React from 'react';
 import { MenuItem } from '../../types/database.types';
+import { ClockIcon, UtensilsIcon } from '../common/Icons';
 
 interface MenuItemCardProps {
   item: MenuItem;
@@ -30,8 +31,9 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
               {item.category}
             </span>
             {item.preparation_time_mins && (
-              <span className="text-[11px] text-gray-500 font-medium flex items-center gap-0.5">
-                ⏱️ {item.preparation_time_mins} mins
+              <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
+                <ClockIcon className="w-3 h-3 text-gray-400" />
+                <span>{item.preparation_time_mins} mins</span>
               </span>
             )}
           </div>
@@ -64,8 +66,8 @@ export const MenuItemCard: React.FC<MenuItemCardProps> = ({
               loading="lazy"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-3xl bg-amber-50">
-              🍲
+            <div className="w-full h-full flex items-center justify-center bg-amber-50">
+              <UtensilsIcon className="w-8 h-8 text-amber-500/60" />
             </div>
           )}
         </div>

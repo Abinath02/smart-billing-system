@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { MenuItem } from '../../types/database.types';
+import { UtensilsIcon, PlusIcon, SearchIcon, TrashIcon, RefreshIcon, CheckIcon } from '../common/Icons';
 
 interface MenuPriceManagementProps {
   menuItems: MenuItem[];
@@ -84,7 +85,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
 
       const updated = data && data.length > 0 ? (data[0] as MenuItem) : { ...item, price: newPrice };
       onItemUpdated(updated);
-      setBanner({ type: 'success', message: `✅ Updated price for "${item.name}" to Rs. ${newPrice.toFixed(2)}` });
+      setBanner({ type: 'success', message: `Updated price for "${item.name}" to Rs. ${newPrice.toFixed(2)}` });
       setEditingPriceMap((prev) => {
         const copy = { ...prev };
         delete copy[item.id];
@@ -129,7 +130,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
       if (onItemAdded && data && data.length > 0) onItemAdded(data[0] as MenuItem);
       if (onRefresh) onRefresh();
 
-      setBanner({ type: 'success', message: `✅ Added dish "${newItemName.trim()}" at Rs. ${priceVal.toFixed(2)}` });
+      setBanner({ type: 'success', message: `Added dish "${newItemName.trim()}" at Rs. ${priceVal.toFixed(2)}` });
       setIsAddModalOpen(false);
       setNewItemName('');
       setNewItemPrice('');
@@ -156,7 +157,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
 
       if (onItemDeleted) onItemDeleted(dish.id);
       if (onRefresh) onRefresh();
-      setBanner({ type: 'success', message: `🗑️ Deleted "${dish.name}" from the menu database.` });
+      setBanner({ type: 'success', message: `Deleted "${dish.name}" from the menu database.` });
     } catch (err: any) {
       alert('Error deleting dish: ' + err.message);
     }
@@ -183,7 +184,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
 
       if (error) throw error;
 
-      setBanner({ type: 'success', message: `🎉 Successfully seeded ${itemsToInsert.length} food items with proper prices into the database!` });
+      setBanner({ type: 'success', message: `Successfully seeded ${itemsToInsert.length} food items with proper prices into the database.` });
       if (onRefresh) onRefresh();
     } catch (err: any) {
       console.error('Error seeding menu:', err);
@@ -213,7 +214,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>🍽️</span> Food Menu & Price Management (உணவு பட்டியல் & விலை)
+            <UtensilsIcon className="w-5 h-5 text-orange-600" /> Food Menu & Price Management
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Add foods to the database with proper rates. Directly edit prices, toggle availability, or delete items.
@@ -227,14 +228,14 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
             className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition flex items-center gap-1.5"
             title="Seed standard Indian & Continental dishes"
           >
-            <span>🌱</span> {seedingMenu ? 'Seeding...' : 'Seed Full Menu'}
+            <RefreshIcon className="w-3.5 h-3.5 text-slate-600" /> {seedingMenu ? 'Seeding...' : 'Seed Full Menu'}
           </button>
 
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5"
           >
-            <span>+ Add New Food Item</span>
+            <PlusIcon className="w-4 h-4" /> Add New Food Item
           </button>
         </div>
       </div>
@@ -242,7 +243,9 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between mb-5">
         <div className="relative w-full sm:w-80">
-          <span className="absolute left-3.5 top-2.5 text-slate-400 text-xs">🔍</span>
+          <span className="absolute left-3.5 top-2.5 text-slate-400">
+            <SearchIcon className="w-4 h-4" />
+          </span>
           <input
             type="text"
             placeholder="Search dish name (Biryani, Paneer, Naan)..."
@@ -300,8 +303,8 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-sm">
-                            🍲
+                          <div className="w-full h-full flex items-center justify-center text-slate-400">
+                            <UtensilsIcon className="w-5 h-5" />
                           </div>
                         )}
                       </div>
@@ -366,7 +369,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
                         className="p-1.5 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
                         title="Delete Dish"
                       >
-                        🗑️
+                        <TrashIcon className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -383,7 +386,9 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-slate-900 animate-scale-in">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="text-2xl">🍲</span>
+                <div className="w-9 h-9 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600">
+                  <UtensilsIcon className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="text-base font-black text-slate-900">Add New Dish to Menu</h3>
                   <p className="text-xs text-slate-500">Insert dish into restaurant database</p>
@@ -400,7 +405,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
             <form onSubmit={handleAddNewItem} className="space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Dish Name (உணவு பெயர்)
+                  Dish Name
                 </label>
                 <input
                   type="text"
@@ -416,7 +421,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Category (பிரிவு)
+                    Category
                   </label>
                   <select
                     value={newItemCategory}
@@ -435,7 +440,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Price (Rs. / LKR விலை)
+                    Price (Rs.)
                   </label>
                   <input
                     type="number"
@@ -503,7 +508,7 @@ export const MenuPriceManagement: React.FC<MenuPriceManagementProps> = ({
                   disabled={addingItem}
                   className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95 disabled:opacity-50"
                 >
-                  {addingItem ? 'Adding Dish...' : 'Add Dish to Database ➔'}
+                  {addingItem ? 'Adding Dish...' : 'Add Dish to Database'}
                 </button>
               </div>
             </form>

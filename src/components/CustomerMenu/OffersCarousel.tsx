@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Offer, MenuItem } from '../../types/database.types';
+import { PercentIcon, ClockIcon } from '../common/Icons';
 
 interface OffersCarouselProps {
   offers: Offer[];
@@ -46,7 +47,7 @@ const OfferCountdownBadge: React.FC<{
 
   return (
     <div className="absolute bottom-2.5 left-2.5 bg-slate-950/85 backdrop-blur-md text-amber-300 font-black text-[11px] px-2.5 py-1 rounded-full shadow-lg border border-amber-400/50 flex items-center gap-1.5 tracking-wider">
-      <span className="animate-spin text-xs">⏳</span>
+      <ClockIcon className="w-3 h-3 text-amber-300" />
       <span>
         {timeLeft.hours > 0 ? `${String(timeLeft.hours).padStart(2, '0')}:` : ''}
         {String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}
@@ -109,7 +110,8 @@ export const OffersCarousel: React.FC<OffersCarouselProps> = ({
                 )}
                 {/* Discount Badge */}
                 <div className="absolute top-2.5 right-2.5 bg-red-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-full shadow-lg tracking-wider uppercase flex items-center gap-1">
-                  <span>🔥</span> {discountText}
+                  <PercentIcon className="w-3 h-3 text-white" />
+                  <span>{discountText}</span>
                 </div>
 
                 {/* Expiry Countdown Timer */}

@@ -4,6 +4,19 @@ import { supabase } from '../lib/supabaseClient';
 import { Order, OrderItem, Waiter } from '../types/database.types';
 import { WaiterLogin } from '../components/Waiter/WaiterLogin';
 import { formatRs } from '../utils/currency';
+import {
+  WaiterIcon,
+  BellIcon,
+  RefreshIcon,
+  LogoutIcon,
+  AlertIcon,
+  CheckIcon,
+  UtensilsIcon,
+  ChefIcon,
+  ArrowRightIcon,
+  CloseIcon,
+  ClockIcon,
+} from '../components/common/Icons';
 
 export const WaiterDashboard: React.FC = () => {
   // Waiter Auth State
@@ -84,7 +97,7 @@ export const WaiterDashboard: React.FC = () => {
             try {
               const parsed = JSON.parse(stored) as Waiter;
               if (parsed && parsed.id) {
-                // Verify with database that waiter is still active
+                // Verify with database that waiter is still active in waiters table
                 const { data: dbWaiter } = await supabase
                   .from('waiters')
                   .select('*')
@@ -95,15 +108,19 @@ export const WaiterDashboard: React.FC = () => {
                   setCurrentWaiter(dbWaiter as Waiter);
                   setAuthChecking(false);
                   return;
+                } else {
+                  // Waiter was deleted or deactivated in database: remove from localStorage
+                  localStorage.removeItem('active_waiter');
                 }
               }
             } catch (e) {
               console.warn('Invalid stored waiter data:', e);
+              localStorage.removeItem('active_waiter');
             }
           }
         }
 
-        // Check Supabase session fallback
+        // Check Supabase session fallback: ONLY 'waiter' role allowed
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -124,26 +141,19 @@ export const WaiterDashboard: React.FC = () => {
             if (byEmail) profile = byEmail;
           }
 
-          if (profile && (profile.role === 'waiter' || profile.role === 'admin') && profile.is_active !== false) {
-            // Fetch waiter table entry
+          if (profile && profile.role === 'waiter' && profile.is_active !== false) {
+            // Fetch waiter table entry strictly from database
             const { data: wRecord } = await supabase
               .from('waiters')
               .select('*')
               .eq('id', profile.id)
               .single();
 
-            setCurrentWaiter(
-              (wRecord as Waiter) || {
-                id: profile.id,
-                name: profile.full_name,
-                phone: profile.phone || null,
-                emp_code: 'W-01',
-                is_active: true,
-                created_at: profile.created_at,
-              }
-            );
-            setAuthChecking(false);
-            return;
+            if (wRecord && wRecord.is_active !== false) {
+              setCurrentWaiter(wRecord as Waiter);
+              setAuthChecking(false);
+              return;
+            }
           }
         }
 
@@ -237,7 +247,7 @@ export const WaiterDashboard: React.FC = () => {
             if (data) {
               setOrders((prev) => [data as Order, ...prev.filter((o) => o.id !== data.id)]);
               if (soundEnabled) playAlertSound('new_order');
-              showToast(`🔔 New Order from Table ${data.table_no}! Please confirm at desk.`);
+              showToast(`New Order from Table ${data.table_no}! Please confirm at desk.`);
             }
           } else if (payload.eventType === 'UPDATE') {
             const { data } = await supabase
@@ -258,7 +268,7 @@ export const WaiterDashboard: React.FC = () => {
                 payload.old.status !== 'ready'
               ) {
                 if (soundEnabled) playAlertSound('ready_order');
-                showToast(`🛎️ Dishes for Table ${data.table_no} are READY! Serve now.`);
+                showToast(`Dishes for Table ${data.table_no} are READY! Serve now.`);
               }
             }
           } else if (payload.eventType === 'DELETE') {
@@ -298,7 +308,7 @@ export const WaiterDashboard: React.FC = () => {
       const updated = data && data.length > 0 ? (data[0] as Order) : { ...order, waiter_id: currentWaiter.id, waiter: currentWaiter };
       setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
 
-      showToast(`✅ Table ${order.table_no} confirmed! Order dispatched to Kitchen.`);
+      showToast(`Table ${order.table_no} confirmed! Order dispatched to Kitchen.`);
       if (selectedOrder?.id === order.id) setSelectedOrder(null);
     } catch (err: any) {
       console.error('Error approving order:', err);
@@ -355,7 +365,7 @@ export const WaiterDashboard: React.FC = () => {
       if (error) throw error;
       const updated = data && data.length > 0 ? (data[0] as Order) : order;
       setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
-      showToast(`🍽️ Table ${order.table_no} dishes served to guests!`);
+      showToast(`Table ${order.table_no} dishes served to guests!`);
       if (selectedOrder?.id === order.id) setSelectedOrder(null);
     } catch (err: any) {
       console.error('Error serving order:', err);
@@ -446,8 +456,8 @@ export const WaiterDashboard: React.FC = () => {
         <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-md border-b border-slate-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-xl shadow-md">
-                🤵
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shadow-md">
+                <WaiterIcon className="w-5 h-5" />
               </div>
               <div>
                 <h1 className="text-base sm:text-lg font-black tracking-tight">Waiter Service POS</h1>
@@ -469,24 +479,26 @@ export const WaiterDashboard: React.FC = () => {
                 }`}
                 title={soundEnabled ? 'Mute Chimes' : 'Enable Chimes'}
               >
-                <span>{soundEnabled ? '🔔' : '🔕'}</span>
+                <BellIcon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{soundEnabled ? 'Sound On' : 'Muted'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => fetchAllOrders()}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
               >
-                🔄 Sync
+                <RefreshIcon className="w-3.5 h-3.5" />
+                <span>Sync</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition"
+                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
               >
-                End Shift
+                <LogoutIcon className="w-3.5 h-3.5" />
+                <span>End Shift</span>
               </button>
             </div>
           </div>
@@ -495,7 +507,7 @@ export const WaiterDashboard: React.FC = () => {
         {/* Toast Alert */}
         {toastMessage && (
           <div className="fixed top-16 right-4 z-50 animate-bounce bg-emerald-600 text-white px-4 py-2.5 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2 border border-emerald-400">
-            <span>✨</span>
+            <CheckIcon className="w-4 h-4 text-white" />
             <span>{toastMessage}</span>
           </div>
         )}
@@ -508,14 +520,14 @@ export const WaiterDashboard: React.FC = () => {
               onClick={() => setActiveTab('unconfirmed')}
               className={`flex-1 py-3 px-4 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 ${
                 activeTab === 'unconfirmed'
-                  ? 'bg-orange-500 text-white shadow-md'
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span>🔔</span>
-              <span>Needs Desk Confirmation</span>
+              <BellIcon className="w-4 h-4" />
+              <span>Needs Confirmation</span>
               {unconfirmedOrders.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-white text-orange-600 text-[11px] font-black animate-pulse">
+                <span className="px-2 py-0.5 rounded-full bg-slate-950 text-amber-400 text-[11px] font-black animate-pulse">
                   {unconfirmedOrders.length}
                 </span>
               )}
@@ -530,7 +542,7 @@ export const WaiterDashboard: React.FC = () => {
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span>🤵</span>
+              <WaiterIcon className="w-4 h-4" />
               <span>My Assigned Tables</span>
               <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-black">
                 {myAssignedOrders.length}
@@ -546,7 +558,7 @@ export const WaiterDashboard: React.FC = () => {
                   : 'text-slate-600 hover:bg-slate-50'
               }`}
             >
-              <span>🏪</span>
+              <UtensilsIcon className="w-4 h-4" />
               <span>All Floor Tables</span>
               <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-black">
                 {allActiveOrders.length}
@@ -559,10 +571,10 @@ export const WaiterDashboard: React.FC = () => {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-orange-50 to-amber-50 p-4 rounded-2xl border border-orange-200">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-2xl">🚨</span>
+                  <AlertIcon className="w-5 h-5 text-orange-600 flex-shrink-0" />
                   <div>
                     <h2 className="text-sm font-black text-orange-950">
-                      Table Orders Awaiting Server Desk Confirmation ({unconfirmedOrders.length})
+                      Table Orders Awaiting Desk Confirmation ({unconfirmedOrders.length})
                     </h2>
                     <p className="text-xs text-orange-800">
                       Customers ordered from table QR. Visit their desk, confirm items, then approve to dispatch to kitchen chefs.
@@ -579,10 +591,10 @@ export const WaiterDashboard: React.FC = () => {
                 </div>
               ) : unconfirmedOrders.length === 0 ? (
                 <div className="p-16 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                  <span className="text-5xl block mb-2">🎉</span>
-                  <h3 className="text-base font-black text-slate-800">All Table Orders Confirmed!</h3>
+                  <CheckIcon className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+                  <h3 className="text-base font-bold text-slate-800">All Table Orders Confirmed</h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                    No customers waiting for order verification right now. New table orders will ding here immediately.
+                    No customers waiting for order verification right now. New table orders will appear here immediately.
                   </p>
                 </div>
               ) : (
@@ -655,7 +667,7 @@ export const WaiterDashboard: React.FC = () => {
                                   {it.item_name}
                                   {it.special_instructions && (
                                     <span className="block text-[10px] text-slate-400 font-normal">
-                                      📝 {it.special_instructions}
+                                      Note: {it.special_instructions}
                                     </span>
                                   )}
                                 </span>
@@ -693,8 +705,8 @@ export const WaiterDashboard: React.FC = () => {
                               <span>Dispatching to Kitchen...</span>
                             ) : (
                               <>
-                                <span>🚶‍♂️ Confirm at Desk &amp; Send to Kitchen</span>
-                                <span>➔</span>
+                                <CheckIcon className="w-4 h-4 inline" />
+                                <span>Confirm at Desk &amp; Send to Kitchen</span>
                               </>
                             )}
                           </button>
@@ -732,10 +744,10 @@ export const WaiterDashboard: React.FC = () => {
 
               {myAssignedOrders.length === 0 ? (
                 <div className="p-16 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                  <span className="text-5xl block mb-2">🤵</span>
-                  <h3 className="text-base font-black text-slate-800">No Tables Assigned Yet</h3>
+                  <WaiterIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <h3 className="text-base font-bold text-slate-800">No Tables Assigned Yet</h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                    Check the &quot;Needs Desk Confirmation&quot; tab to approve incoming table orders and take responsibility for them.
+                    Check the &quot;Needs Confirmation&quot; tab to approve incoming table orders and take responsibility for them.
                   </p>
                 </div>
               ) : (
@@ -771,7 +783,7 @@ export const WaiterDashboard: React.FC = () => {
                                       : 'bg-amber-100 text-amber-800'
                                   }`}
                                 >
-                                  {isReady ? '🛎️ READY TO SERVE' : ord.status}
+                                  {isReady ? 'READY TO SERVE' : ord.status}
                                 </span>
                               </div>
                               <span className="text-xs font-mono text-slate-400 block mt-0.5">
@@ -807,7 +819,7 @@ export const WaiterDashboard: React.FC = () => {
                           {/* Notes */}
                           {ord.notes && (
                             <p className="text-[11px] text-slate-500 italic mb-3 bg-slate-50 p-2 rounded-lg">
-                              📝 {ord.notes}
+                              Note: {ord.notes}
                             </p>
                           )}
                         </div>
@@ -819,29 +831,31 @@ export const WaiterDashboard: React.FC = () => {
                               type="button"
                               disabled={isActionLoading}
                               onClick={() => handleMarkAsServed(ord)}
-                              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
+                              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
                             >
                               {isActionLoading ? (
                                 <span>Updating...</span>
                               ) : (
                                 <>
-                                  <span>🍽️ Deliver &amp; Mark as Served</span>
-                                  <span>✓</span>
+                                  <UtensilsIcon className="w-3.5 h-3.5" />
+                                  <span>Deliver &amp; Mark as Served</span>
                                 </>
                               )}
                             </button>
                           ) : (
-                            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-center text-xs font-bold">
-                              👨‍🍳 Kitchen chefs are preparing this order...
+                            <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-center text-xs font-bold flex items-center justify-center gap-1.5">
+                              <ChefIcon className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Kitchen chefs are preparing this order...</span>
                             </div>
                           )}
 
                           <button
                             type="button"
                             onClick={() => setSelectedOrder(ord)}
-                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1"
                           >
-                            Inspect Receipt / Details ➔
+                            <span>Inspect Order Details</span>
+                            <ArrowRightIcon className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
@@ -903,10 +917,10 @@ export const WaiterDashboard: React.FC = () => {
                             <span className="text-slate-400">Responsible Server:</span>
                             <span className="font-bold text-slate-800">
                               {isMine
-                                ? '⭐ You (Assigned)'
+                                ? 'You (Assigned)'
                                 : ord.waiter?.name
-                                ? `🤵 ${ord.waiter.name}`
-                                : '⚠️ Unconfirmed'}
+                                ? ord.waiter.name
+                                : 'Unconfirmed'}
                             </span>
                           </div>
                           <div className="flex justify-between">
@@ -933,9 +947,10 @@ export const WaiterDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleApproveAndSendToKitchen(ord)}
-                            className="w-full py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs rounded-xl transition shadow"
+                            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition shadow flex items-center justify-center gap-1"
                           >
-                            Claim &amp; Confirm at Table ➔
+                            <span>Claim &amp; Confirm at Table</span>
+                            <ArrowRightIcon className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

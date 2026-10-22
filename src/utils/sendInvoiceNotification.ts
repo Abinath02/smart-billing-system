@@ -37,7 +37,7 @@ export async function sendInvoiceNotification(
         .join('\n');
 
       const messageText = 
-`*🧾 SPICE GARDEN RESTAURANT - DIGITAL RECEIPT*
+`*SPICE GARDEN RESTAURANT - DIGITAL RECEIPT*
 *Bill No:* ${order.bill_no}
 *Table:* ${order.table_no}
 *Customer:* ${order.customer_name || 'Guest'}
@@ -48,7 +48,7 @@ ${itemsList || 'Order Items Settled'}
 ${order.discount_amount > 0 ? `*Discount:* -Rs. ${Number(order.discount_amount).toFixed(2)}\n` : ''}*GST (5%):* Rs. ${Number(order.tax_amount).toFixed(2)}
 *Total Paid:* Rs. ${Number(order.total_amount).toFixed(2)} (${order.payment_mode ? order.payment_mode.toUpperCase() : 'PAID'})
 ------------------------------------
-Thank you for dining with us! Please visit us again 🙏`;
+Thank you for dining with us! Please visit us again.`;
 
       whatsappShareUrl = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(messageText)}`;
     }

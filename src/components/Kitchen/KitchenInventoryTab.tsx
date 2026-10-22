@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { InventoryItem, InventoryLog, Profile } from '../../types/database.types';
+import { BoxIcon, AlertIcon, SearchIcon, RefreshIcon, CheckIcon } from '../common/Icons';
 
 interface KitchenInventoryTabProps {
   inventoryItems: InventoryItem[];
@@ -123,7 +124,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
 
           setAlertBanner({
             type: 'warning',
-            message: `🚨 LOW STOCK TRIGGERED: ${selectedItem.name} has dropped to ${newQty} ${selectedItem.unit}! Alert email automatically dispatched to Admin (mrd426004@gmail.com).`,
+            message: `Low stock alert: ${selectedItem.name} has dropped to ${newQty} ${selectedItem.unit}. Notification email dispatched to Admin (mrd426004@gmail.com).`,
           });
         } catch (alertErr) {
           console.error('Failed to dispatch low stock alert:', alertErr);
@@ -131,7 +132,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
       } else {
         setAlertBanner({
           type: 'success',
-          message: `✅ Successfully recorded withdrawal of ${useQty} ${selectedItem.unit} of ${selectedItem.name}. Remaining: ${newQty} ${selectedItem.unit}.`,
+          message: `Recorded withdrawal of ${useQty} ${selectedItem.unit} of ${selectedItem.name}. Remaining: ${newQty} ${selectedItem.unit}.`,
         });
       }
 
@@ -160,9 +161,13 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
           }`}
         >
           <div className="flex items-center gap-2">
-            <span className="text-base">
-              {alertBanner.type === 'warning' ? '⚠️' : '✅'}
-            </span>
+            {alertBanner.type === 'warning' ? (
+              <AlertIcon className="w-4 h-4 text-amber-400" />
+            ) : alertBanner.type === 'error' ? (
+              <AlertIcon className="w-4 h-4 text-red-400" />
+            ) : (
+              <CheckIcon className="w-4 h-4 text-emerald-400" />
+            )}
             <span>{alertBanner.message}</span>
           </div>
           <button
@@ -178,7 +183,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-black text-white flex items-center gap-2">
-            <span>📦</span> Kitchen Store & Raw Materials (மூலப்பொருட்கள் இருப்பு)
+            <BoxIcon className="w-5 h-5 text-orange-500" /> Kitchen Store & Raw Materials
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             View stock quantities left in store. Select items taken for cooking today to update inventory and alert Admin if low.
@@ -204,7 +209,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
             className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
             title="Refresh Stock List"
           >
-            <span>🔄</span> Refresh
+            <RefreshIcon className="w-3.5 h-3.5 text-slate-300" /> Refresh
           </button>
         </div>
       </div>
@@ -213,13 +218,15 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         {/* Search */}
         <div className="relative w-full sm:w-72">
-          <span className="absolute left-3 top-2.5 text-slate-500 text-xs">🔍</span>
+          <span className="absolute left-3 top-2.5 text-slate-500">
+            <SearchIcon className="w-4 h-4" />
+          </span>
           <input
             type="text"
             placeholder="Search Rice, Bun, Salt, Oil..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
         </div>
 
@@ -264,11 +271,11 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
                   </span>
                   {isLow ? (
                     <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-red-600/30 text-red-300 border border-red-500/40 animate-pulse">
-                      ⚠️ LOW STOCK
+                      LOW STOCK
                     </span>
                   ) : (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-600/20 text-emerald-300">
-                      ✓ Normal
+                      Normal
                     </span>
                   )}
                 </div>
@@ -316,8 +323,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
                     : 'bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white'
                 }`}
               >
-                <span>📤</span>
-                <span>Issue from Store (பயன்படுத்து)</span>
+                <span>Issue from Store</span>
               </button>
             </div>
           );
@@ -326,7 +332,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
 
       {filteredItems.length === 0 && (
         <div className="text-center py-12 bg-slate-900 border border-slate-800 rounded-3xl text-slate-400">
-          <span className="text-4xl block mb-2">📦</span>
+          <BoxIcon className="w-10 h-10 text-slate-600 mx-auto mb-2" />
           <p className="text-sm font-bold text-white">No raw material items found</p>
           <p className="text-xs text-slate-500 mt-1">Try searching another ingredient keyword or check category filter.</p>
         </div>
@@ -338,7 +344,9 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl text-white animate-scale-in">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="text-2xl">🍳</span>
+                <div className="w-9 h-9 rounded-xl bg-orange-600/20 text-orange-400 flex items-center justify-center">
+                  <BoxIcon className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="text-base font-black text-white">Record Kitchen Store Usage</h3>
                   <p className="text-xs text-slate-400">Store-to-Kitchen ingredient withdrawal</p>
@@ -372,7 +380,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
               {/* Quantity Taken Input */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Quantity Taken for Kitchen (இன்று எடுத்த அளவு)
+                  Quantity Taken for Kitchen
                 </label>
                 <div className="relative">
                   <input
@@ -415,7 +423,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
               {/* Requisition Notes / Purpose */}
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
-                  Purpose / Notes (காரணம் / குறிப்பு)
+                  Purpose / Notes
                 </label>
                 <input
                   type="text"
@@ -428,7 +436,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
 
               {/* Admin Alert Email Notice */}
               <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] text-amber-300">
-                ⚠️ If remaining stock drops below <strong>{selectedItem.min_threshold} {selectedItem.unit}</strong>, an automatic replenishment alert email will be dispatched directly to Admin at <span className="underline font-bold">mrd426004@gmail.com</span>.
+                Notice: If remaining stock drops below <strong>{selectedItem.min_threshold} {selectedItem.unit}</strong>, an automatic replenishment alert email will be dispatched directly to Admin at <span className="underline font-bold">mrd426004@gmail.com</span>.
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -444,7 +452,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
                   disabled={submitting}
                   className="flex-1 py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-black text-xs rounded-xl shadow-lg transition active:scale-95 disabled:opacity-50"
                 >
-                  {submitting ? 'Updating...' : 'Confirm & Deduct Stock ➔'}
+                  {submitting ? 'Updating...' : 'Confirm & Deduct Stock'}
                 </button>
               </div>
             </form>
@@ -456,7 +464,7 @@ export const KitchenInventoryTab: React.FC<KitchenInventoryTabProps> = ({
       {inventoryLogs.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-xl mt-8">
           <h3 className="text-sm font-black text-white mb-3 flex items-center gap-2">
-            <span>📋</span> Today's Store Withdrawal Activity Log (பயன்பாட்டு விபரம்)
+            <BoxIcon className="w-4 h-4 text-orange-400" /> Today's Store Withdrawal Activity Log
           </h3>
 
           <div className="overflow-x-auto">

@@ -2,6 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Order } from '../../types/database.types';
 import { formatRs } from '../../utils/currency';
+import {
+  ChefIcon,
+  CheckIcon,
+  ClockIcon,
+  UtensilsIcon,
+  WaiterIcon,
+  MailIcon,
+} from '../common/Icons';
 
 interface OrderSuccessModalProps {
   order: Order;
@@ -58,7 +66,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
       return {
         label: 'Awaiting Floor Server Confirmation',
         color: 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse',
-        icon: '⏳',
+        icon: <ClockIcon className="w-3.5 h-3.5 inline text-amber-600" />,
         subtext: `Our floor waiter will visit Table ${order.table_no} shortly to confirm your order before our chefs start cooking.`,
       };
     }
@@ -66,7 +74,7 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
       return {
         label: `Confirmed by ${waiterName || 'Server'} - Sent to Kitchen!`,
         color: 'bg-blue-100 text-blue-900 border-blue-300',
-        icon: '👨‍🍳',
+        icon: <ChefIcon className="w-3.5 h-3.5 inline text-blue-600" />,
         subtext: 'Your order was verified at your desk and sent to the kitchen.',
       };
     }
@@ -76,28 +84,28 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
         return {
           label: 'Chef is Preparing Your Food',
           color: 'bg-blue-100 text-blue-800 border-blue-300',
-          icon: '🔥',
-          subtext: 'Your food is now on the stove / tandoor!',
+          icon: <ChefIcon className="w-3.5 h-3.5 inline text-blue-600 animate-pulse" />,
+          subtext: 'Your food is now being freshly prepared in the kitchen.',
         };
       case 'ready':
         return {
           label: 'Ready to Serve!',
           color: 'bg-green-100 text-green-800 border-green-300',
-          icon: '🍽️',
+          icon: <UtensilsIcon className="w-3.5 h-3.5 inline text-green-600" />,
           subtext: `${waiterName || 'Your server'} is bringing your dishes to the table now!`,
         };
       case 'paid':
         return {
           label: 'Completed & Paid',
           color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-          icon: '✅',
+          icon: <CheckIcon className="w-3.5 h-3.5 inline text-emerald-600" />,
           subtext: 'Thank you for dining with us! Please visit again.',
         };
       default:
         return {
           label: currentStatus,
           color: 'bg-gray-100 text-gray-800 border-gray-300',
-          icon: '📋',
+          icon: <ClockIcon className="w-3.5 h-3.5 inline text-gray-500" />,
           subtext: 'Order is being processed.',
         };
     }
@@ -154,23 +162,26 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           {waiterName && (
             <div className="flex justify-between items-center text-xs">
               <span className="text-gray-500 font-medium">Assigned Server:</span>
-              <span className="font-bold text-amber-700">🤵 {waiterName}</span>
+              <span className="font-bold text-amber-700 inline-flex items-center gap-1">
+                <WaiterIcon className="w-3.5 h-3.5 text-amber-600" />
+                {waiterName}
+              </span>
             </div>
           )}
 
           <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-xs">
             <span className="text-gray-500 font-medium">Live Status:</span>
             <span
-              className={`px-2.5 py-1 rounded-full font-bold text-[11px] border flex items-center gap-1 ${badge.color}`}
+              className={`px-2.5 py-1 rounded-full font-bold text-[11px] border flex items-center gap-1.5 ${badge.color}`}
             >
-              <span>{badge.icon}</span> {badge.label}
+              {badge.icon} <span>{badge.label}</span>
             </span>
           </div>
         </div>
 
         {/* Info */}
         <div className="mt-4 p-3 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 text-xs text-left flex items-start gap-2">
-          <span className="text-base">📧</span>
+          <MailIcon className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
           <p>
             A digital copy of your bill will be dispatched to{' '}
             <strong className="font-semibold">{order.customer_email || 'your email'}</strong>.

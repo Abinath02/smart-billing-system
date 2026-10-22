@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '../../lib/supabaseClient';
 import { Profile } from '../../types/database.types';
+import { CashIcon, LockIcon, AlertIcon, ArrowRightIcon } from '../common/Icons';
 
 interface CashierLoginProps {
   onLoginSuccess: (profile: Profile) => void;
@@ -30,7 +32,7 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
         throw new Error('Authentication failed. No user record returned.');
       }
 
-      // 2. Strict Role Verification from profiles table
+      // 2. Strict Role Verification from profiles table: ONLY 'cashier' role
       let { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
@@ -53,19 +55,20 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
         console.error('Cashier profile lookup failed:', profileErr);
         await supabase.auth.signOut();
         throw new Error(
-          profileErr?.message ||
-          'No staff profile found. Only accounts registered by the Restaurant Admin can access POS.'
+          'No staff profile found. Only accounts registered by the Restaurant Administrator can access POS.'
         );
       }
 
       if (profile.is_active === false) {
         await supabase.auth.signOut();
-        throw new Error('Your cashier account is currently inactive. Please contact Admin.');
+        throw new Error('Your cashier account is currently inactive. Please contact Administrator.');
       }
 
-      if (profile.role !== 'cashier' && profile.role !== 'admin') {
+      if (profile.role !== 'cashier') {
         await supabase.auth.signOut();
-        throw new Error(`Access denied. Found role "${profile.role}", but Cashier or Admin staff access is required.`);
+        throw new Error(
+          `Access restricted: Cashier POS is strictly for Cashier staff. Your account role is "${profile.role}". Please sign in at your designated portal.`
+        );
       }
 
       onLoginSuccess(profile as Profile);
@@ -81,32 +84,32 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-white">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-3xl mx-auto mb-3 shadow-inner">
-            💰
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <CashIcon className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-black tracking-tight text-white">
+          <h2 className="text-2xl font-bold tracking-tight text-white">
             Cashier POS Counter
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Authorized Cashier Sign-in Required
+            Billing, Checkout &amp; Settlement Terminal
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-950/60 border border-red-800/80 text-red-300 text-xs font-semibold rounded-xl flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
+          <div className="mb-4 p-3 bg-red-950/60 border border-red-800/80 text-red-300 text-xs font-semibold rounded-xl flex items-start gap-2.5">
+            <AlertIcon className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-400" />
+            <span className="leading-relaxed">{error}</span>
           </div>
         )}
 
         <form onSubmit={handleAuth} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Cashier Staff Email
             </label>
             <input
               type="email"
-              placeholder="cashier@spicegarden.com"
+              placeholder="cashier@restaurant.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -115,12 +118,12 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Password
             </label>
             <input
               type="password"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -131,18 +134,42 @@ export const CashierLogin: React.FC<CashierLoginProps> = ({ onLoginSuccess }) =>
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-black text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? 'Authenticating...' : 'Open Cashier Till ➔'}
+            {loading ? (
+              <span>Authenticating...</span>
+            ) : (
+              <>
+                <span>Sign In to Cashier POS</span>
+                <ArrowRightIcon className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-slate-800 text-center">
-          <p className="text-[11px] text-slate-400">
-            🔒 <strong>Notice:</strong> Staff accounts are strictly provisioned by the <span className="text-amber-400 font-semibold">Restaurant Administrator</span>. Contact Admin for POS login credentials.
-          </p>
+        <div className="mt-6 pt-5 border-t border-slate-800 text-center space-y-3">
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
+            <LockIcon className="w-3.5 h-3.5" />
+            <span>Role-Restricted Access: Cashier staff accounts only.</span>
+          </div>
+
+          <div className="pt-2 flex items-center justify-center gap-4 text-xs font-medium text-slate-400">
+            <Link href="/admin" className="hover:text-emerald-400 transition">
+              Admin Portal
+            </Link>
+            <span className="text-slate-700">•</span>
+            <Link href="/kitchen" className="hover:text-emerald-400 transition">
+              Kitchen KDS
+            </Link>
+            <span className="text-slate-700">•</span>
+            <Link href="/waiter" className="hover:text-emerald-400 transition">
+              Waiter Portal
+            </Link>
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
+export default CashierLogin;

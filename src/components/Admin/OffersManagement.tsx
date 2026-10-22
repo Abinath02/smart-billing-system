@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { Offer, MenuItem } from '../../types/database.types';
 import { formatRs } from '../../utils/currency';
+import { TagIcon, PercentIcon, ClockIcon, RefreshIcon } from '../common/Icons';
 
 interface OffersManagementProps {
   offers: Offer[];
@@ -129,7 +130,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
       if (data && data.length > 0) {
         onOfferAdded(data[0] as Offer);
       }
-      setMessage('🎉 Offer launched! It is now live on the Customer QR Menu with countdown timer.');
+      setMessage('Offer launched! It is now live on the Customer QR Menu with countdown timer.');
       setTitle('');
       setSelectedItemId('');
       setPosterUrl('');
@@ -176,7 +177,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
       if (data && data.length > 0) {
         onOfferUpdated(data[0] as Offer);
       }
-      alert(`✅ Extended "${offer.title}" by ${hours} hours!`);
+      alert(`Extended "${offer.title}" by ${hours} hours!`);
     } catch (err: any) {
       alert('Failed to extend offer: ' + err.message);
     }
@@ -219,7 +220,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
             </span>
             <h3 className="text-lg font-black text-slate-900">Create New Timed Offer</h3>
           </div>
-          <span className="text-2xl">⏳</span>
+          <ClockIcon className="w-5 h-5 text-orange-600" />
         </div>
 
         {message && (
@@ -321,12 +322,15 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
             </div>
 
             <div className="flex items-center">
-              <p className="text-xs text-slate-600">
-                💡 Customers will get{' '}
-                <strong className="text-orange-600 font-extrabold">
-                  {discountType === 'percentage' ? `${discountValue}% OFF` : `Rs. ${discountValue} OFF`}
-                </strong>{' '}
-                when ordering this deal!
+              <p className="text-xs text-slate-600 flex items-center gap-1">
+                <PercentIcon className="w-3.5 h-3.5 text-orange-600" />
+                <span>
+                  Customers will get{' '}
+                  <strong className="text-orange-600 font-extrabold">
+                    {discountType === 'percentage' ? `${discountValue}% OFF` : `Rs. ${discountValue} OFF`}
+                  </strong>{' '}
+                  when ordering this deal!
+                </span>
               </p>
             </div>
           </div>
@@ -335,8 +339,9 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <label className="block text-xs font-black text-slate-800">
-                  ⏳ Offer Duration & Expiry Timer
+                <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <ClockIcon className="w-3.5 h-3.5 text-slate-700" />
+                  Offer Duration & Expiry Timer
                 </label>
                 <p className="text-[11px] text-slate-500">
                   Offer shows a live countdown on the customer menu and automatically disappears when time runs out.
@@ -398,7 +403,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* File upload input */}
               <div className="border-2 border-dashed border-slate-200 hover:border-orange-400 rounded-2xl p-4 text-center cursor-pointer transition bg-slate-50 flex flex-col items-center justify-center">
-                <span className="text-2xl mb-1">🖼️</span>
+                <TagIcon className="w-6 h-6 text-slate-400 mb-1" />
                 <span className="text-xs font-bold text-slate-700">Upload Poster File</span>
                 <span className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, or WebP</span>
                 <input
@@ -458,7 +463,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
               disabled={submitting}
               className="px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white font-extrabold text-xs tracking-wider uppercase rounded-xl shadow-lg transition active:scale-95 flex items-center gap-2"
             >
-              {submitting ? 'Launching Offer...' : 'Save & Publish Offer 🚀'}
+              {submitting ? 'Launching Offer...' : 'Save & Publish Offer'}
             </button>
           </div>
         </form>
@@ -499,8 +504,8 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-2xl">
-                          🔥
+                        <div className="w-full h-full flex items-center justify-center text-slate-400">
+                          <TagIcon className="w-8 h-8" />
                         </div>
                       )}
                       <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
@@ -514,7 +519,7 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                         <div className={`absolute bottom-2 left-2 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1 ${
                           timerInfo.expired ? 'bg-red-700 text-white' : 'bg-slate-900/80 backdrop-blur-sm text-amber-300'
                         }`}>
-                          <span>⏳</span> {timerInfo.text}
+                          <ClockIcon className="w-3 h-3" /> {timerInfo.text}
                         </div>
                       )}
                     </div>
@@ -532,9 +537,9 @@ export const OffersManagement: React.FC<OffersManagementProps> = ({
                       <button
                         type="button"
                         onClick={() => handleExtendOffer(offer, 24)}
-                        className="w-full py-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition"
+                        className="w-full py-1 text-[10px] font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-lg transition flex items-center justify-center gap-1"
                       >
-                        🔄 Extend +24 Hours
+                        <RefreshIcon className="w-3 h-3" /> Extend +24 Hours
                       </button>
                     )}
 

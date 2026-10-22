@@ -7,6 +7,12 @@ import { OffersCarousel } from '../components/CustomerMenu/OffersCarousel';
 import { MenuItemCard } from '../components/CustomerMenu/MenuItemCard';
 import { CheckoutModal } from '../components/CustomerMenu/CheckoutModal';
 import { OrderSuccessModal } from '../components/CustomerMenu/OrderSuccessModal';
+import {
+  UtensilsIcon,
+  LockIcon,
+  SearchIcon,
+  ArrowRightIcon,
+} from '../components/common/Icons';
 
 export const CustomerMenuPage: React.FC = () => {
   const router = useRouter();
@@ -192,8 +198,8 @@ export const CustomerMenuPage: React.FC = () => {
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
         <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-md text-xl">
-              🍽️
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-md">
+              <UtensilsIcon className="w-5 h-5" />
             </div>
             <div>
               <h1 className="text-base font-extrabold text-gray-900 leading-tight">
@@ -209,7 +215,7 @@ export const CustomerMenuPage: React.FC = () => {
           <div className="text-right">
             {isTableLocked ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-black">
-                <span>🔒</span> Table {scannedTable}
+                <LockIcon className="w-3 h-3 inline text-emerald-700" /> Table {scannedTable}
               </span>
             ) : (
               <span className="text-[11px] text-gray-400 font-medium">Digital Ordering</span>
@@ -220,7 +226,7 @@ export const CustomerMenuPage: React.FC = () => {
         {/* Search Bar */}
         <div className="max-w-md mx-auto px-4 pb-2.5">
           <div className="relative">
-            <span className="absolute left-3.5 top-2.5 text-gray-400 text-sm">🔍</span>
+            <SearchIcon className="w-4 h-4 text-gray-400 absolute left-3.5 top-2.5" />
             <input
               type="text"
               placeholder="Search dishes (Biryani, Paneer, Naan...)"
@@ -299,7 +305,7 @@ export const CustomerMenuPage: React.FC = () => {
 
             {filteredItems.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-gray-300">
-                <span className="text-4xl">🍽️</span>
+                <UtensilsIcon className="w-10 h-10 text-gray-300 mx-auto" />
                 <p className="text-sm font-bold text-gray-700 mt-2">No items found</p>
                 <p className="text-xs text-gray-400 mt-0.5">Try searching with another keyword.</p>
               </div>
@@ -344,7 +350,7 @@ export const CustomerMenuPage: React.FC = () => {
               className="px-5 py-2.5 bg-white text-orange-600 rounded-xl font-extrabold text-xs tracking-wider uppercase shadow-md hover:bg-orange-50 active:scale-95 transition flex items-center gap-1.5"
             >
               <span>View Cart</span>
-              <span>➔</span>
+              <ArrowRightIcon className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>

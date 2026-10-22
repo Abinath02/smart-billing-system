@@ -6,6 +6,19 @@ import { generateInvoicePDF } from '../utils/generateInvoicePDF';
 import { sendInvoiceNotification } from '../utils/sendInvoiceNotification';
 import { CashierLogin } from '../components/Cashier/CashierLogin';
 import { formatRs } from '../utils/currency';
+import {
+  CashIcon,
+  BarChartIcon,
+  SearchIcon,
+  CheckIcon,
+  AlertIcon,
+  ClockIcon,
+  PrinterIcon,
+  LogoutIcon,
+  RefreshIcon,
+  WaiterIcon,
+  QrCodeIcon,
+} from '../components/common/Icons';
 
 type CashierPaymentMode = 'cash' | 'card' | 'upi' | 'split';
 
@@ -36,7 +49,7 @@ export const CashierDashboard: React.FC = () => {
   const restaurantVpa = process.env.NEXT_PUBLIC_RESTAURANT_UPI_VPA || 'spicegarden@upi';
   const restaurantName = process.env.NEXT_PUBLIC_RESTAURANT_NAME || 'Spice Garden';
 
-  // 1. Auth Guard Check on Mount & Navigation
+  // 1. Auth Guard Check on Mount & Navigation: ONLY 'cashier' role allowed
   useEffect(() => {
     const checkAuth = async () => {
       setAuthChecking(true);
@@ -61,7 +74,7 @@ export const CashierDashboard: React.FC = () => {
             if (profileByEmail) profile = profileByEmail;
           }
 
-          if (profile && (profile.role === 'cashier' || profile.role === 'admin') && profile.is_active !== false) {
+          if (profile && profile.role === 'cashier' && profile.is_active !== false) {
             setCurrentUser(profile as Profile);
           } else {
             setCurrentUser(null);
@@ -420,8 +433,8 @@ export const CashierDashboard: React.FC = () => {
         <header className="sticky top-0 z-30 bg-slate-900 text-white shadow-md border-b border-slate-800">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 flex items-center justify-center text-xl shadow-md">
-                💰
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-md">
+                <CashIcon className="w-5 h-5" />
               </div>
               <div>
                 <h1 className="text-lg font-black tracking-tight">Cashier POS Billing Counter</h1>
@@ -439,21 +452,24 @@ export const CashierDashboard: React.FC = () => {
               <a
                 href="/waiter"
                 target="_blank"
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
               >
-                <span>🤵</span> Waiter POS ↗
+                <WaiterIcon className="w-3.5 h-3.5" />
+                <span>Waiter POS</span>
               </a>
               <button
                 onClick={fetchOpenOrders}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 transition flex items-center gap-1.5"
               >
-                🔄 Sync Bills
+                <RefreshIcon className="w-3.5 h-3.5" />
+                <span>Sync Bills</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition"
+                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-800 text-red-300 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
               >
-                Logout
+                <LogoutIcon className="w-3.5 h-3.5" />
+                <span>Logout</span>
               </button>
             </div>
           </div>
@@ -465,7 +481,7 @@ export const CashierDashboard: React.FC = () => {
           <div className="mb-6 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-4 sm:p-5 rounded-3xl shadow-lg border border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <span className="text-xl">📊</span>
+                <BarChartIcon className="w-5 h-5 text-emerald-400" />
                 <div>
                   <h2 className="text-sm sm:text-base font-black tracking-tight text-white">
                     Today&apos;s Till &amp; Daily Sales ({new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })})
@@ -532,7 +548,7 @@ export const CashierDashboard: React.FC = () => {
                 </label>
                 <form onSubmit={handleSearchBill} className="flex gap-2">
                   <div className="relative flex-1">
-                    <span className="absolute left-3.5 top-3 text-slate-400 text-sm">🔍</span>
+                    <SearchIcon className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
                       placeholder="Enter Bill No (e.g. BILL-1001 or Table)"
@@ -551,8 +567,9 @@ export const CashierDashboard: React.FC = () => {
                 </form>
 
                 {searchError && (
-                  <p className="mt-2 text-xs font-semibold text-red-600 bg-red-50 p-2 rounded-lg">
-                    ⚠️ {searchError}
+                  <p className="mt-2 text-xs font-semibold text-red-600 bg-red-50 p-2 rounded-lg flex items-center gap-1.5">
+                    <AlertIcon className="w-4 h-4 text-red-600 flex-shrink-0" />
+                    <span>{searchError}</span>
                   </p>
                 )}
               </div>
@@ -570,7 +587,7 @@ export const CashierDashboard: React.FC = () => {
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    🔔 Awaiting ({unpaidOrders.length})
+                    Awaiting ({unpaidOrders.length})
                   </button>
                   <button
                     type="button"
@@ -584,7 +601,7 @@ export const CashierDashboard: React.FC = () => {
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    📜 Past ({pastPaidOrders.length})
+                    Settled ({pastPaidOrders.length})
                   </button>
                   <button
                     type="button"
@@ -598,7 +615,7 @@ export const CashierDashboard: React.FC = () => {
                         : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    📊 Today ({todaySettledOrders.length})
+                    Today ({todaySettledOrders.length})
                   </button>
                 </div>
 
@@ -619,8 +636,8 @@ export const CashierDashboard: React.FC = () => {
                       </div>
                     ) : unpaidOrders.length === 0 ? (
                       <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl">
-                        <span className="text-3xl">🎉</span>
-                        <p className="text-xs font-bold text-slate-700 mt-2">All Bills Settled!</p>
+                        <CheckIcon className="w-8 h-8 text-emerald-500 mx-auto" />
+                        <p className="text-xs font-bold text-slate-700 mt-2">All Bills Settled</p>
                         <p className="text-[11px] text-slate-400 mt-0.5">No unpaid tables right now.</p>
                       </div>
                     ) : (
@@ -685,7 +702,7 @@ export const CashierDashboard: React.FC = () => {
 
                     {pastPaidOrders.length === 0 ? (
                       <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
-                        <p className="text-2xl mb-1">📜</p>
+                        <PrinterIcon className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
                         <p className="text-xs font-bold">No Settled Bills Recorded Yet</p>
                       </div>
                     ) : (
@@ -790,7 +807,7 @@ export const CashierDashboard: React.FC = () => {
                       </h4>
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
                         <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200">
-                          <span className="text-[10px] font-bold text-amber-800 block">💵 Cash</span>
+                          <span className="text-[10px] font-bold text-amber-800 block">Cash</span>
                           <span className="font-black text-amber-950 text-xs mt-0.5 block">
                             {formatRs(todayCashTotal)}
                           </span>
@@ -799,7 +816,7 @@ export const CashierDashboard: React.FC = () => {
                           </span>
                         </div>
                         <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
-                          <span className="text-[10px] font-bold text-blue-800 block">💳 Card</span>
+                          <span className="text-[10px] font-bold text-blue-800 block">Card</span>
                           <span className="font-black text-blue-950 text-xs mt-0.5 block">
                             {formatRs(todayCardTotal)}
                           </span>
@@ -808,7 +825,7 @@ export const CashierDashboard: React.FC = () => {
                           </span>
                         </div>
                         <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200">
-                          <span className="text-[10px] font-bold text-purple-800 block">📱 QR / Online</span>
+                          <span className="text-[10px] font-bold text-purple-800 block">QR / Online</span>
                           <span className="font-black text-purple-950 text-xs mt-0.5 block">
                             {formatRs(todayUpiTotal)}
                           </span>
@@ -830,7 +847,7 @@ export const CashierDashboard: React.FC = () => {
 
                       {todaySettledOrders.length === 0 ? (
                         <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
-                          <p className="text-xl mb-1">⏳</p>
+                          <ClockIcon className="w-8 h-8 text-slate-300 mx-auto mb-1.5" />
                           <p className="text-xs font-semibold">No bills settled yet today.</p>
                         </div>
                       ) : (
@@ -1050,52 +1067,51 @@ export const CashierDashboard: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setPaymentMode('cash')}
-                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
+                          className={`py-2.5 px-2 rounded-2xl font-bold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 border-2 transition-all ${
                             paymentMode === 'cash'
                               ? 'border-emerald-600 bg-emerald-50 text-emerald-800 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span>💵</span>
+                          <CashIcon className="w-4 h-4" />
                           <span>Cash</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setPaymentMode('card')}
-                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
+                          className={`py-2.5 px-2 rounded-2xl font-bold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 border-2 transition-all ${
                             paymentMode === 'card'
                               ? 'border-blue-600 bg-blue-50 text-blue-800 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span>💳</span>
+                          <CashIcon className="w-4 h-4" />
                           <span>Card</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setPaymentMode('upi')}
-                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
+                          className={`py-2.5 px-2 rounded-2xl font-bold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 border-2 transition-all ${
                             paymentMode === 'upi'
                               ? 'border-purple-600 bg-purple-50 text-purple-800 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span>📱</span>
+                          <QrCodeIcon className="w-4 h-4" />
                           <span>QR Pay</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => setPaymentMode('split')}
-                          className={`py-2.5 px-2 rounded-2xl font-black text-xs flex flex-col sm:flex-row items-center justify-center gap-1 border-2 transition-all ${
+                          className={`py-2.5 px-2 rounded-2xl font-bold text-xs flex flex-col sm:flex-row items-center justify-center gap-1.5 border-2 transition-all ${
                             paymentMode === 'split'
                               ? 'border-amber-600 bg-amber-50 text-amber-800 shadow-sm'
                               : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                           }`}
                         >
-                          <span>⚖️</span>
                           <span>Split</span>
                         </button>
                       </div>
@@ -1171,7 +1187,7 @@ export const CashierDashboard: React.FC = () => {
                         <div className="grid grid-cols-2 gap-3 text-xs">
                           <div>
                             <label className="block text-slate-700 font-bold mb-1">
-                              💵 Cash Portion (Rs.)
+                              Cash Portion (Rs.)
                             </label>
                             <input
                               type="number"
@@ -1183,7 +1199,7 @@ export const CashierDashboard: React.FC = () => {
 
                           <div>
                             <label className="block text-slate-700 font-bold mb-1">
-                              📱 Digital / Card (Rs.)
+                              Digital / Card (Rs.)
                             </label>
                             <div className="px-3 py-2 bg-white border border-slate-200 rounded-xl font-black text-purple-700">
                               {formatRs(splitDigital)}
@@ -1210,7 +1226,7 @@ export const CashierDashboard: React.FC = () => {
                     {/* Notification Alert */}
                     {notificationStatus && (
                       <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2">
-                        <span>📲</span>
+                        <CheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                         <span>{notificationStatus}</span>
                       </div>
                     )}
@@ -1222,22 +1238,22 @@ export const CashierDashboard: React.FC = () => {
                           type="button"
                           disabled={closingBill}
                           onClick={handleCloseBill}
-                          className="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-black text-sm tracking-wide shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2"
+                          className="flex-1 py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm tracking-wide shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                           {closingBill ? (
-                            <span>Settling & Closing Bill...</span>
+                            <span>Settling &amp; Closing Bill...</span>
                           ) : (
                             <>
-                              <span>Close Bill & Print Receipt</span>
-                              <span>🧾</span>
+                              <PrinterIcon className="w-4 h-4" />
+                              <span>Close Bill &amp; Print Receipt</span>
                             </>
                           )}
                         </button>
                       ) : (
                         <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                          <div className="flex-1 py-3 px-4 bg-emerald-100 text-emerald-800 font-black text-xs rounded-2xl text-center flex items-center justify-center gap-1.5 border border-emerald-200">
-                            <span>✅</span>
-                            <span>Bill Settled & Paid</span>
+                          <div className="flex-1 py-3 px-4 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-2xl text-center flex items-center justify-center gap-1.5 border border-emerald-200">
+                            <CheckIcon className="w-4 h-4 text-emerald-600" />
+                            <span>Bill Settled &amp; Paid</span>
                           </div>
 
                           {whatsappShareUrl && (
@@ -1245,10 +1261,9 @@ export const CashierDashboard: React.FC = () => {
                               href={whatsappShareUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 shadow transition"
+                              className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 shadow transition"
                             >
-                              <span>📲</span>
-                              <span>WhatsApp Bill</span>
+                              <span>WhatsApp Receipt</span>
                             </a>
                           )}
 
@@ -1257,7 +1272,7 @@ export const CashierDashboard: React.FC = () => {
                             onClick={handleManualDownloadPDF}
                             className="px-4 py-3 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-2xl flex items-center justify-center gap-1.5 transition"
                           >
-                            <span>📥</span>
+                            <PrinterIcon className="w-4 h-4" />
                             <span>Download PDF</span>
                           </button>
                         </div>
@@ -1268,8 +1283,8 @@ export const CashierDashboard: React.FC = () => {
               ) : (
                 /* Empty Selection Placeholder */
                 <div className="bg-white rounded-3xl border-2 border-dashed border-slate-200 p-16 text-center">
-                  <span className="text-5xl">🧾</span>
-                  <h3 className="text-base font-black text-slate-800 mt-3">
+                  <PrinterIcon className="w-12 h-12 text-slate-300 mx-auto" />
+                  <h3 className="text-base font-bold text-slate-800 mt-3">
                     No Order Selected
                   </h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">

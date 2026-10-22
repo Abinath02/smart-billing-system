@@ -38,7 +38,7 @@ export default async function handler(
   const resendApiKey = process.env.RESEND_API_KEY;
   const restaurantName = process.env.NEXT_PUBLIC_RESTAURANT_NAME || 'Spice Garden Restaurant';
 
-  const subject = `⚠️ URGENT LOW STOCK ALERT: ${itemName} (${currentQuantity} ${unit} left) - ${restaurantName}`;
+  const subject = `URGENT LOW STOCK ALERT: ${itemName} (${currentQuantity} ${unit} left) - ${restaurantName}`;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -67,12 +67,12 @@ export default async function handler(
     <body>
       <div class="card">
         <div class="header">
-          <h1>⚠️ INVENTORY DEFICIT ALERT</h1>
+          <h1>INVENTORY DEFICIT ALERT</h1>
           <p>${restaurantName} • Store Inventory Monitor</p>
         </div>
         <div class="content">
           <div class="alert-box">
-            🚨 Immediate Action Required: <strong>${itemName}</strong> stock has dropped below the minimum reserve threshold! Please refill and purchase stock.
+            Action Required: <strong>${itemName}</strong> stock has dropped below the minimum reserve threshold. Please arrange purchase and restock.
           </div>
 
           <div class="stat-grid">
@@ -93,7 +93,7 @@ export default async function handler(
             </tr>
             <tr>
               <td class="label">Quantity Left</td>
-              <td><span style="color: #dc2626; font-weight: 700;">${currentQuantity} ${unit}</span> (Below min ${minThreshold} ${unit})</td>
+              <td><span style="color: #dc2626; font-weight: 700;">${currentQuantity} ${unit}</span> (Below minimum ${minThreshold} ${unit})</td>
             </tr>
             <tr>
               <td class="label">Reported By / Used By</td>
@@ -110,7 +110,7 @@ export default async function handler(
           </table>
 
           <p style="font-size: 13px; color: #475569; line-height: 1.5; margin: 0;">
-            <strong>கவனத்திற்கு (Notice):</strong> கிச்சனில் சமையல் மூலப்பொருள் <strong>${itemName}</strong>-ன் இருப்பு குறைந்துவிட்டது. சமையல் தடையின்றி நடைபெற உடனடியாக ஸ்டாக் நிரப்பவும் (Refill Stock).
+            <strong>Notice:</strong> The raw ingredient <strong>${itemName}</strong> has reached low stock levels. Please arrange procurement to ensure uninterrupted kitchen operations.
           </p>
         </div>
         <div class="footer">

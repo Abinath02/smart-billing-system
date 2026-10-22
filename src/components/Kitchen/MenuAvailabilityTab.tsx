@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { MenuItem } from '../../types/database.types';
+import { SearchIcon, UtensilsIcon } from '../common/Icons';
 
 interface MenuAvailabilityTabProps {
   menuItems: MenuItem[];
@@ -81,7 +82,9 @@ export const MenuAvailabilityTab: React.FC<MenuAvailabilityTabProps> = ({
       {/* Search and Filters Header */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-72">
-          <span className="absolute left-3.5 top-2.5 text-gray-400 text-xs">🔍</span>
+          <span className="absolute left-3.5 top-2.5 text-gray-400">
+            <SearchIcon className="w-4 h-4" />
+          </span>
           <input
             type="text"
             placeholder="Search dish name..."
@@ -131,8 +134,8 @@ export const MenuAvailabilityTab: React.FC<MenuAvailabilityTabProps> = ({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-lg">
-                      🍲
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <UtensilsIcon className="w-6 h-6" />
                     </div>
                   )}
                 </div>

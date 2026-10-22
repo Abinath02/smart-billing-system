@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Order } from '../../types/database.types';
+import { WaiterIcon, CheckIcon, ClockIcon } from '../common/Icons';
 
 interface OrderCardProps {
   order: Order;
@@ -62,7 +63,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               </span>
               {isOverdue && (
                 <span className="text-[10px] font-black uppercase tracking-wider bg-red-100 text-red-700 px-2 py-0.5 rounded-full animate-pulse">
-                  ⚠️ SLA Overdue (+{formatTime(overdueSecs)})
+                  SLA Overdue (+{formatTime(overdueSecs)})
                 </span>
               )}
             </div>
@@ -79,10 +80,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                   : 'bg-amber-100 text-amber-800'
               }`}
             >
-              {order.status === 'cooking' ? '🔥 Cooking' : '⏳ New Order'}
+              {order.status === 'cooking' ? 'Cooking' : 'New Order'}
             </span>
-            <p className="text-[11px] text-gray-500 font-bold mt-1 font-mono">
-              ⏱️ {formatTime(secondsElapsed)} elapsed
+            <p className="text-[11px] text-gray-500 font-bold mt-1 font-mono flex items-center justify-end gap-1">
+              <ClockIcon className="w-3 h-3 text-gray-400" />
+              <span>{formatTime(secondsElapsed)} elapsed</span>
             </p>
           </div>
         </div>
@@ -92,8 +94,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <span className="text-amber-800 font-bold uppercase text-[10px] tracking-wider">
             Responsible Server:
           </span>
-          <span className="font-black text-amber-950 flex items-center gap-1">
-            <span>🤵</span>
+          <span className="font-black text-amber-950 flex items-center gap-1.5">
+            <WaiterIcon className="w-3.5 h-3.5 text-amber-700" />
             <span>
               {order.waiter?.name || 'Assigned Waiter'} {order.waiter?.emp_code ? `(${order.waiter.emp_code})` : ''}
             </span>
@@ -120,8 +122,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
         {/* Customer / Waiter Note if present */}
         {order.notes && (
-          <div className="mt-3 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs font-medium flex items-center gap-1.5">
-            <span>📝</span>
+          <div className="mt-3 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 text-xs font-medium">
             <p className="line-clamp-2">
               <strong>Chef Note:</strong> {order.notes}
             </p>
@@ -156,13 +157,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                           </span>
                           {isRound2 && (
                             <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">
-                              ✨ New Add-on (Round 2)
+                              New Add-on (Round 2)
                             </span>
                           )}
                         </div>
                         {item.special_instructions && (
                           <p className="text-[10px] text-orange-700 font-medium mt-0.5">
-                            ⭐ {item.special_instructions}
+                            Note: {item.special_instructions}
                           </p>
                         )}
                       </div>
@@ -185,7 +186,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             onClick={() => onStartCooking(order.id)}
             className="flex-1 py-2.5 px-3 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition active:scale-95"
           >
-            Start Prep 🔥
+            Start Cooking
           </button>
         )}
 
@@ -194,8 +195,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           onClick={() => onMarkAsCooked(order)}
           className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-extrabold text-xs tracking-wide shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
         >
+          <CheckIcon className="w-4 h-4" />
           <span>Mark as Cooked</span>
-          <span>🍽️</span>
         </button>
       </div>
     </div>

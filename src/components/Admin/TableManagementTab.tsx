@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { QrCodeIcon, PrinterIcon, PlusIcon, SearchIcon, UtensilsIcon, LockIcon } from '../common/Icons';
 
 export interface RestaurantTable {
   id: string;
@@ -124,7 +125,8 @@ export const TableManagementTab: React.FC = () => {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4 border-slate-100">
         <div>
           <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-            <span>🏷️</span> Restaurant Tables & Dine-In QR Cards (மேசைகள் & QR குறியீடுகள்)
+            <QrCodeIcon className="w-5 h-5 text-orange-600" />
+            Restaurant Tables & Dine-In QR Cards
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Manage your restaurant tables, generate instant scannable QR cards, and download or print table tents.
@@ -136,13 +138,13 @@ export const TableManagementTab: React.FC = () => {
             onClick={() => window.print()}
             className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
           >
-            <span>🖨️</span> Print All Table Tents
+            <PrinterIcon className="w-4 h-4" /> Print All Table Tents
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold rounded-xl shadow-md transition active:scale-95 flex items-center gap-1.5"
           >
-            <span>+ Add New Table</span>
+            <PlusIcon className="w-4 h-4" /> Add New Table
           </button>
         </div>
       </div>
@@ -150,7 +152,9 @@ export const TableManagementTab: React.FC = () => {
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
         <div className="relative w-full sm:w-80">
-          <span className="absolute left-3.5 top-2.5 text-slate-400 text-xs">🔍</span>
+          <span className="absolute left-3.5 top-2.5 text-slate-400">
+            <SearchIcon className="w-4 h-4" />
+          </span>
           <input
             type="text"
             placeholder="Search table (T-01, VIP, Lawn)..."
@@ -223,7 +227,7 @@ export const TableManagementTab: React.FC = () => {
                 Scan with Phone Camera to Order
               </p>
               <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full mt-1 font-semibold flex items-center gap-1">
-                <span>🔒</span> Table ID: <strong className="font-mono">{tbl.id}</strong>
+                <LockIcon className="w-3 h-3 text-emerald-600" /> Table ID: <strong className="font-mono">{tbl.id}</strong>
               </span>
 
               {/* Action Buttons */}
@@ -233,7 +237,7 @@ export const TableManagementTab: React.FC = () => {
                     onClick={() => copyTableLink(tbl.id)}
                     className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition"
                   >
-                    {copiedId === tbl.id ? '✓ Copied!' : 'Copy Link'}
+                    {copiedId === tbl.id ? 'Copied' : 'Copy Link'}
                   </button>
                   <a
                     href={qrCodeImgUrl}
@@ -243,7 +247,7 @@ export const TableManagementTab: React.FC = () => {
                     className="py-1.5 px-2.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold rounded-xl transition"
                     title="Download QR Image"
                   >
-                    ⬇️ QR
+                    Download QR
                   </a>
                 </div>
 
@@ -251,9 +255,9 @@ export const TableManagementTab: React.FC = () => {
                   href={tableUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl transition shadow-sm"
+                  className="w-full py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl transition shadow-sm text-center"
                 >
-                  Open Live Menu ➔
+                  Open Live Menu
                 </a>
               </div>
             </div>
@@ -263,7 +267,7 @@ export const TableManagementTab: React.FC = () => {
 
       {filteredTables.length === 0 && (
         <div className="text-center py-12 text-slate-400">
-          <p className="text-4xl mb-2">🍽️</p>
+          <UtensilsIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
           <p className="text-sm font-bold">No tables found matching your search.</p>
         </div>
       )}
@@ -274,7 +278,7 @@ export const TableManagementTab: React.FC = () => {
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b pb-3 border-slate-100">
               <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <span>➕</span> Add New Restaurant Table & Generate QR
+                <PlusIcon className="w-4 h-4 text-orange-600" /> Add New Restaurant Table & Generate QR
               </h3>
               <button
                 onClick={() => setIsAddModalOpen(false)}
@@ -362,7 +366,7 @@ export const TableManagementTab: React.FC = () => {
                   type="submit"
                   className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl shadow-md transition active:scale-95"
                 >
-                  Create & Generate QR ➔
+                  Create Table & Generate QR
                 </button>
               </div>
             </form>
